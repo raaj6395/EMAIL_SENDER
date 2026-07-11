@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"io"
 	"net/http"
 	"strings"
@@ -22,26 +21,20 @@ type AIConfig struct {
 
 const openAIURL = "https://api.openai.com/v1/chat/completions"
 
-// styleSample anchors the AI to the candidate's own natural, sincere voice.
-const styleSample = `I am Ankit Raj, a final year B.Tech student in ECE at NIT Allahabad. ` +
-	`I have worked as a Backend Engineer Intern where I built backend features, improved system performance, ` +
-	`worked on production services, and solved real business problems. I enjoy building reliable backend ` +
-	`applications that can handle real users and large amounts of data. ` +
-	`I am now looking for a Backend Engineer role where I can keep learning, build scalable systems, ` +
-	`and create products that make a real impact.`
-
-// aiEmail is the strict JSON shape we ask the model to return.
-type aiEmail struct {
-	Subject string   `json:"subject"`
-	Body    []string `json:"body"` // paragraphs, plain text
+// AITweaks are the small, bounded pieces AI is allowed to produce. Everything
+// else in the email is fixed template text.
+type AITweaks struct {
+	Subject     string `json:"subject"`
+	CompanyLine string `json:"companyLine"`
 }
 
-// GenerateWithAI asks OpenAI to write a tailored cold email. On any failure
-// (missing key, network, bad response) it returns an error so the caller can
-// fall back to the template.
-func GenerateWithAI(ctx context.Context, ai AIConfig, p *resume.Profile, in ComposeInput, attachmentName string) (Rendered, error) {
+// GenerateTweaks asks OpenAI for ONLY a tailored subject line and a single
+// "why this company" sentence — not the whole email. This keeps the AI's
+// surface tiny so it can't drift or rewrite the user's real content. On any
+// failure it returns an error so the caller falls back to the template.
+func GenerateTweaks(ctx context.Context, ai AIConfig, p *resume.Profile, in ComposeInput) (AITweaks, error) {
 	if ai.APIKey == "" {
-		return Rendered{}, fmt.Errorf("OpenAI key not configured")
+		return AITweaks{}, fmt.Errorf("OpenAI key not configured")
 	}
 
 	sys, user := buildPrompts(p, in)
@@ -52,12 +45,12 @@ func GenerateWithAI(ctx context.Context, ai AIConfig, p *resume.Profile, in Comp
 			{"role": "system", "content": sys},
 			{"role": "user", "content": user},
 		},
-		"temperature":     0.7,
+		"temperature":     0.6,
 		"response_format": map[string]string{"type": "json_object"},
 	}
 	buf, err := json.Marshal(reqBody)
 	if err != nil {
-		return Rendered{}, err
+		return AITweaks{}, err
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -65,20 +58,20 @@ func GenerateWithAI(ctx context.Context, ai AIConfig, p *resume.Profile, in Comp
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, openAIURL, bytes.NewReader(buf))
 	if err != nil {
-		return Rendered{}, err
+		return AITweaks{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+ai.APIKey)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return Rendered{}, fmt.Errorf("OpenAI request failed: %w", err)
+		return AITweaks{}, fmt.Errorf("OpenAI request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return Rendered{}, fmt.Errorf("OpenAI returned %d: %s", resp.StatusCode, truncate(string(body), 300))
+		return AITweaks{}, fmt.Errorf("OpenAI returned %d: %s", resp.StatusCode, truncate(string(body), 300))
 	}
 
 	var completion struct {
@@ -89,24 +82,33 @@ func GenerateWithAI(ctx context.Context, ai AIConfig, p *resume.Profile, in Comp
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(body, &completion); err != nil {
-		return Rendered{}, fmt.Errorf("could not parse OpenAI response: %w", err)
+		return AITweaks{}, fmt.Errorf("could not parse OpenAI response: %w", err)
 	}
 	if len(completion.Choices) == 0 {
-		return Rendered{}, fmt.Errorf("OpenAI returned no choices")
+		return AITweaks{}, fmt.Errorf("OpenAI returned no choices")
 	}
 
-	var parsed aiEmail
+	var parsed AITweaks
 	if err := json.Unmarshal([]byte(completion.Choices[0].Message.Content), &parsed); err != nil {
-		return Rendered{}, fmt.Errorf("could not parse AI email JSON: %w", err)
-	}
-	if strings.TrimSpace(parsed.Subject) == "" || len(parsed.Body) == 0 {
-		return Rendered{}, fmt.Errorf("AI email was empty")
+		return AITweaks{}, fmt.Errorf("could not parse AI JSON: %w", err)
 	}
 
-	return assembleAIRendered(p, parsed, greeting(in.RecipientName), attachmentName), nil
+	parsed.Subject = strings.TrimSpace(parsed.Subject)
+	parsed.CompanyLine = sanitizeLine(parsed.CompanyLine)
+
+	// Validate the company line — if it's empty or obviously off, discard it so
+	// the template's safe default is used instead.
+	if !validCompanyLine(parsed.CompanyLine, in.Company) {
+		parsed.CompanyLine = ""
+	}
+	if parsed.Subject == "" && parsed.CompanyLine == "" {
+		return AITweaks{}, fmt.Errorf("AI produced nothing usable")
+	}
+	return parsed, nil
 }
 
-// buildPrompts constructs the system + user prompts from the profile and target.
+// buildPrompts constructs the system + user prompts. The AI is told to produce
+// ONLY the subject and one company-specific sentence.
 func buildPrompts(p *resume.Profile, in ComposeInput) (system, user string) {
 	role := strings.TrimSpace(in.Role)
 	if role == "" {
@@ -114,65 +116,69 @@ func buildPrompts(p *resume.Profile, in ComposeInput) (system, user string) {
 	}
 
 	system = strings.Join([]string{
-		"You help a job seeker write a short, warm, natural job-application email to a company.",
-		"Match the candidate's own writing voice shown in the STYLE SAMPLE below: simple, sincere, first-person, flowing paragraphs (no bullet points), plain everyday words. Keep it normal and concise — do NOT make it sound corporate, salesy, or over-polished.",
-		"Only lightly adapt the candidate's real background to the specific company and role. Never invent facts, projects, metrics, or company details that were not provided.",
-		"Length: 110-170 words. Avoid clichés like 'I am writing to', 'I am thrilled/excited', 'I am reaching out'. No greeting line and no sign-off/signature — those are added separately. Start directly with the first sentence of the body.",
-		"",
-		"STYLE SAMPLE (the candidate's own tone — mirror this):",
-		styleSample,
-		"",
-		`Return STRICT JSON: {"subject": string, "body": [string, ...]} where body is 3-4 short paragraphs of plain text (no markdown, no bullet characters).`,
+		"You help tailor a job-application email that is otherwise written from a fixed template.",
+		"You will NOT write the whole email. You produce only TWO things:",
+		"1) subject: a short, specific subject line (no clickbait, no emojis, under ~9 words).",
+		"2) companyLine: a short paragraph of 1-2 sentences (max ~45 words) expressing the candidate's passion and why they look forward to contributing to THIS specific company, in a warm, sincere, first-person voice.",
+		"Rules for companyLine: start with 'I'; mention the company by name; do not invent facts, products, metrics, or claims about the company or candidate; no clichés ('I am writing to', 'I am thrilled/excited'); plain everyday words; it must read naturally as the 3rd paragraph of the email, similar in shape to this default it replaces: " + fmt.Sprintf(templateCompanyPara, in.Company),
+		"Match this candidate's natural tone: " + styleSample,
+		`Return STRICT JSON: {"subject": string, "companyLine": string}. No other text.`,
 	}, "\n")
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "Company: %s\n", in.Company)
 	if role != "" {
-		fmt.Fprintf(&b, "Target role: %s\n", role)
+		fmt.Fprintf(&b, "Role: %s\n", role)
 	}
 	if p.Name != "" {
-		fmt.Fprintf(&b, "Candidate name: %s\n", p.Name)
-	}
-	if p.Pitch != "" {
-		fmt.Fprintf(&b, "Candidate summary: %s\n", p.Pitch)
+		fmt.Fprintf(&b, "Candidate: %s\n", p.Name)
 	}
 	if len(p.Skills) > 0 {
-		fmt.Fprintf(&b, "Key skills: %s\n", strings.Join(p.Skills, ", "))
+		fmt.Fprintf(&b, "Candidate skills: %s\n", strings.Join(topN(p.Skills, 8), ", "))
 	}
-	b.WriteString("The resume is attached to the email; you may reference that it's attached.")
-	user = b.String()
-	return system, user
+	b.WriteString("Write the subject and the companyLine paragraph now.")
+	return system, b.String()
 }
 
-// assembleAIRendered turns the AI subject/body into a full Rendered email,
-// appending our own consistent greeting + signature (so contact details and
-// the recipient's name stay accurate).
-func assembleAIRendered(p *resume.Profile, ai aiEmail, greet, attachmentName string) Rendered {
-	// Plaintext
-	var text strings.Builder
-	text.WriteString(greet)
-	text.WriteString("\n\n")
-	text.WriteString(strings.Join(ai.Body, "\n\n"))
-	text.WriteString("\n\nBest regards,\n")
-	text.WriteString(signatureText(p))
+// styleSample anchors the AI to the candidate's own natural, sincere voice.
+const styleSample = "I am a final-year B.Tech student who interned as a backend engineer. " +
+	"I enjoy building reliable backend applications that handle real users and large amounts of data, " +
+	"and I want to keep learning and build things that make a real impact."
 
-	// HTML
-	var htmlB strings.Builder
-	htmlB.WriteString(`<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;max-width:560px;">`)
-	htmlB.WriteString(`<p>` + html.EscapeString(greet) + `</p>`)
-	for _, para := range ai.Body {
-		htmlB.WriteString(`<p>` + html.EscapeString(para) + `</p>`)
-	}
-	htmlB.WriteString(`<p style="margin-top:20px;">Best regards,<br>`)
-	htmlB.WriteString(signatureHTML(p))
-	htmlB.WriteString(`</p></div>`)
+// sanitizeLine strips wrapping quotes/whitespace and collapses newlines so a
+// single-sentence company line stays a single paragraph.
+func sanitizeLine(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, `"'`)
+	s = strings.Join(strings.Fields(s), " ") // collapse internal whitespace/newlines
+	return strings.TrimSpace(s)
+}
 
-	return Rendered{
-		Subject:        strings.TrimSpace(ai.Subject),
-		BodyHTML:       htmlB.String(),
-		BodyText:       text.String(),
-		AttachmentName: attachmentName,
+// validCompanyLine sanity-checks the AI sentence so a bad one is discarded in
+// favour of the template default.
+func validCompanyLine(line, company string) bool {
+	if line == "" {
+		return false
 	}
+	words := strings.Fields(line)
+	if len(words) < 4 || len(words) > 45 { // too short or a runaway paragraph
+		return false
+	}
+	// Must reference the company by name (case-insensitive), so it's actually
+	// tailored and not a generic filler.
+	if c := strings.TrimSpace(company); c != "" {
+		if !strings.Contains(strings.ToLower(line), strings.ToLower(c)) {
+			return false
+		}
+	}
+	return true
+}
+
+func topN(items []string, n int) []string {
+	if len(items) > n {
+		return items[:n]
+	}
+	return items
 }
 
 func truncate(s string, n int) string {

@@ -1,33 +1,56 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 
 export function Card({
   title,
   step,
+  action,
+  collapsible = false,
+  defaultOpen = true,
   children,
   className = "",
 }: {
   title?: string;
   step?: number;
+  action?: ReactNode; // right-aligned header content (e.g. a button)
+  collapsible?: boolean;
+  defaultOpen?: boolean;
   children: ReactNode;
   className?: string;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const showBody = !collapsible || open;
+
   return (
     <section
       className={`rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm ${className}`}
     >
       {title && (
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-          {step !== undefined && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)] text-[11px] font-bold text-white">
-              {step}
-            </span>
-          )}
-          {title}
-        </h2>
+        <div className="flex items-center justify-between gap-2" style={{ marginBottom: showBody ? "1rem" : 0 }}>
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+            {step !== undefined && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)] text-[11px] font-bold text-white">
+                {step}
+              </span>
+            )}
+            {title}
+          </h2>
+          <div className="flex items-center gap-2">
+            {action}
+            {collapsible && (
+              <button
+                onClick={() => setOpen((o) => !o)}
+                className="text-xs text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                aria-expanded={open}
+              >
+                {open ? "Hide ▲" : "Edit ▼"}
+              </button>
+            )}
+          </div>
+        </div>
       )}
-      {children}
+      {showBody && children}
     </section>
   );
 }

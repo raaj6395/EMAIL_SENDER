@@ -41,7 +41,7 @@ export interface Rendered {
 
 /** Preview result: rendered email plus how it was produced. */
 export interface ComposeResult extends Rendered {
-  source: "ai" | "template";
+  source: "ai-tweaked" | "template";
   note?: string;
 }
 
@@ -49,7 +49,7 @@ export interface SendResult {
   ok: boolean;
   subject: string;
   sentTo: string;
-  source: "ai" | "template";
+  source: "ai-tweaked" | "template";
 }
 
 export interface DigestResult {

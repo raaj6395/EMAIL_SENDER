@@ -38,13 +38,13 @@ export function ProfileEditor({
     set("skills", profile.skills.filter((x) => x !== s));
 
   return (
-    <Card title="Your profile" step={1}>
+    <Card title="Your profile" collapsible defaultOpen={false}>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Button variant="secondary" onClick={onParse} loading={parsing}>
           Parse from resume
         </Button>
         <span className="text-xs text-[var(--muted)]">
-          Auto-fills fields from backend/data/resume.pdf. Review and correct below before sending.
+          Auto-fills fields from backend/data/resume.pdf. Review and correct before sending.
         </span>
       </div>
 

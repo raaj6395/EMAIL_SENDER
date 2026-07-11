@@ -1,6 +1,7 @@
 "use client";
 
 import { ComposeInput } from "@/lib/api";
+import { guessCompany, guessFirstName } from "@/lib/guess";
 import { Button, Card, Field, Input } from "./ui";
 
 export function ComposeForm({
@@ -18,15 +19,30 @@ export function ComposeForm({
   const companyValid = input.company.trim().length > 0;
   const canPreview = emailValid && companyValid;
 
+  // When the email changes, auto-suggest company + first name — but only into
+  // fields the user hasn't already filled, so we never overwrite their input.
+  const handleEmailChange = (email: string) => {
+    const next: ComposeInput = { ...input, recipientEmail: email };
+    if (!input.company.trim()) {
+      const company = guessCompany(email);
+      if (company) next.company = company;
+    }
+    if (!(input.recipientName ?? "").trim()) {
+      const name = guessFirstName(email);
+      if (name) next.recipientName = name;
+    }
+    onChange(next);
+  };
+
   return (
-    <Card title="Compose" step={2}>
+    <Card title="Compose" step={1}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Recipient email">
+        <Field label="Recipient email" hint="Company & name are auto-suggested — edit if needed">
           <Input
             type="email"
             value={input.recipientEmail}
-            onChange={(e) => onChange({ ...input, recipientEmail: e.target.value })}
-            placeholder="hiring@company.com"
+            onChange={(e) => handleEmailChange(e.target.value)}
+            placeholder="priya@carousell.com"
           />
         </Field>
         <Field label="Company name">

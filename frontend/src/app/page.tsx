@@ -16,9 +16,26 @@ import { ProfileEditor } from "@/components/ProfileEditor";
 import { ComposeForm } from "@/components/ComposeForm";
 import { EmailPreview } from "@/components/EmailPreview";
 import { SendHistory } from "@/components/SendHistory";
+import { StatusPanel } from "@/components/StatusPanel";
 import { Toast } from "@/components/ui";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
+
+/** Small status pill for the top bar. */
+function Pill({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+        ok
+          ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300"
+          : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300"
+      }`}
+    >
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${ok ? "bg-green-500" : "bg-red-500"}`} />
+      {label}
+    </span>
+  );
+}
 
 export default function Home() {
   const [health, setHealth] = useState<Health | null>(null);
@@ -118,7 +135,7 @@ export default function Home() {
     setToast(null);
     try {
       const res = await api.send(compose);
-      const how = res.source === "ai" ? "AI-written" : "template";
+      const how = res.source === "ai-tweaked" ? "AI-tailored" : "template";
       setToast({ kind: "success", message: `Sent ${how} email to ${res.sentTo} ✓` });
       setRendered(null);
       setCompose({ recipientEmail: "", recipientName: "", company: "", role: "" });
@@ -147,25 +164,37 @@ export default function Home() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:py-12">
-      <header className="mb-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">Resume Cold-Email Sender</h1>
-          {health?.aiEnabled && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent)]/10 px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
-              ✨ AI on{health.aiModel ? ` · ${health.aiModel}` : ""}
-            </span>
-          )}
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      {/* Top bar */}
+      <header className="mb-6 flex flex-col gap-3 border-b border-[var(--border)] pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Resume Cold-Email Sender</h1>
+            {health?.aiEnabled && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent)]/10 px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
+                ✨ AI · {health.aiModel}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Type an email and company — send a tailored resume email via your Gmail.
+          </p>
         </div>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Enter an email and company — send a tailored resume email via your Gmail.
-        </p>
+        {/* Quick status pills */}
+        <div className="flex flex-wrap gap-2">
+          <Pill ok={!!health?.hasResume} label={health?.hasResume ? "Resume ready" : "No resume"} />
+          <Pill ok={!!health?.hasCredentials} label={health?.hasCredentials ? "Gmail connected" : "Gmail not set"} />
+        </div>
       </header>
 
-      <div className="space-y-5">
+      {/* Alerts */}
+      <div className="mb-5 space-y-3">
         <SetupBanner health={health} />
         {toast && <Toast kind={toast.kind} message={toast.message} onClose={() => setToast(null)} />}
+      </div>
 
+      {/* Profile (collapsible setup, full width) */}
+      <div className="mb-5">
         <ProfileEditor
           profile={profile}
           onChange={setProfile}
@@ -175,35 +204,48 @@ export default function Home() {
           saving={saving}
           saved={saved}
         />
-
-        <ComposeForm
-          input={compose}
-          onChange={setCompose}
-          onPreview={handlePreview}
-          loading={previewing}
-        />
-
-        {rendered && (
-          <EmailPreview
-            rendered={rendered}
-            recipient={compose.recipientEmail}
-            gmailUser={health?.gmailUser ?? ""}
-            onBack={() => setRendered(null)}
-            onSend={handleSend}
-            sending={sending}
-          />
-        )}
-
-        <SendHistory
-          entries={history}
-          digestEnabled={health?.digestEnabled ?? false}
-          digestTo={health?.digestTo ?? ""}
-          onDigest={handleDigest}
-          digesting={digesting}
-        />
       </div>
 
-      <footer className="mt-10 text-center text-xs text-[var(--muted)]">
+      {/* Dashboard grid: workflow (left) + status & activity (right) */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {/* Main workflow column */}
+        <div className="space-y-5 lg:col-span-2">
+          <ComposeForm
+            input={compose}
+            onChange={setCompose}
+            onPreview={handlePreview}
+            loading={previewing}
+          />
+          {rendered ? (
+            <EmailPreview
+              rendered={rendered}
+              recipient={compose.recipientEmail}
+              gmailUser={health?.gmailUser ?? ""}
+              onBack={() => setRendered(null)}
+              onSend={handleSend}
+              sending={sending}
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">
+              Fill in the recipient and company, then <span className="font-medium">Preview email</span> to see it here before sending.
+            </div>
+          )}
+        </div>
+
+        {/* Side column: status + activity feed */}
+        <aside className="space-y-5">
+          <StatusPanel health={health} history={history} />
+          <SendHistory
+            entries={history}
+            digestEnabled={health?.digestEnabled ?? false}
+            digestTo={health?.digestTo ?? ""}
+            onDigest={handleDigest}
+            digesting={digesting}
+          />
+        </aside>
+      </div>
+
+      <footer className="mt-8 border-t border-[var(--border)] pt-5 text-center text-xs text-[var(--muted)]">
         Sends through Gmail SMTP · Your resume and credentials stay on the backend.
       </footer>
     </main>

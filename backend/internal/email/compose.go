@@ -8,35 +8,54 @@ import (
 	"emailsender/internal/resume"
 )
 
-// Source indicates how an email body was produced.
+// Source indicates how an email was produced.
 type Source string
 
 const (
-	SourceAI       Source = "ai"
+	// SourceAITweaked: the fixed template with AI-tailored subject/company line.
+	SourceAITweaked Source = "ai-tweaked"
+	// SourceTemplate: the pure template (AI off or its tweaks were unusable).
 	SourceTemplate Source = "template"
 )
 
 // Result bundles the rendered email with metadata for the UI.
 type Result struct {
 	Rendered
-	Source Source `json:"source"` // "ai" or "template"
-	Note   string `json:"note"`   // e.g. why we fell back to the template
+	Source Source `json:"source"` // "ai-tweaked" or "template"
+	Note   string `json:"note"`   // e.g. why we fell back to the pure template
 }
 
-// Compose produces the email, preferring AI when configured and falling back to
-// the deterministic template on any AI failure so sending never breaks.
+// Compose always renders from the fixed template. When AI is configured it asks
+// for small tweaks (a tailored subject + one "why this company" sentence) and
+// injects them; the rest of the email — the user's real intro, skills, and
+// close — is never AI-touched. Any AI failure silently falls back to the pure
+// template so sending never breaks.
 func Compose(ctx context.Context, ai AIConfig, p *resume.Profile, in ComposeInput, attachmentName string) Result {
-	if ai.APIKey != "" {
-		rendered, err := GenerateWithAI(ctx, ai, p, in, attachmentName)
-		if err == nil {
-			return Result{Rendered: rendered, Source: SourceAI}
-		}
-		// Log server-side; surface a short note to the UI without leaking detail.
-		log.Printf("AI generation failed, using template fallback: %v", err)
-		tmpl := Render(p, in, attachmentName)
-		return Result{Rendered: tmpl, Source: SourceTemplate, Note: "AI unavailable — used template. " + shortReason(err)}
+	if ai.APIKey == "" {
+		return Result{Rendered: Render(p, in, attachmentName, RenderOptions{}), Source: SourceTemplate}
 	}
-	return Result{Rendered: Render(p, in, attachmentName), Source: SourceTemplate}
+
+	tweaks, err := GenerateTweaks(ctx, ai, p, in)
+	if err != nil {
+		log.Printf("AI tweaks failed, using pure template: %v", err)
+		return Result{
+			Rendered: Render(p, in, attachmentName, RenderOptions{}),
+			Source:   SourceTemplate,
+			Note:     "AI unavailable — used template. " + shortReason(err),
+		}
+	}
+
+	rendered := Render(p, in, attachmentName, RenderOptions{
+		Subject:     tweaks.Subject,
+		CompanyLine: tweaks.CompanyLine,
+	})
+	// If the company line was discarded by validation, say so (subject may still
+	// be AI-tailored).
+	note := ""
+	if tweaks.CompanyLine == "" {
+		note = "AI subject applied; used the standard company line."
+	}
+	return Result{Rendered: rendered, Source: SourceAITweaked, Note: note}
 }
 
 // shortReason gives a user-safe one-liner about why AI failed.

@@ -32,10 +32,19 @@ func greeting(recipientName string) string {
 	return "Hi,"
 }
 
-// Render builds a personalized cold email from the profile + per-send input.
-// The style is warm, first-person, and narrative (flowing paragraphs, no
-// bullets) to match the user's own voice. Kept concise for high reply rates.
-func Render(p *resume.Profile, in ComposeInput, attachmentName string) Rendered {
+// RenderOptions carries optional AI-generated tweaks. Empty fields fall back to
+// the fixed template. Only the subject and the single "company line" are ever
+// AI-supplied — the intro, skills, and closing paragraphs are always the
+// template's own text, so the user's real content is never altered.
+type RenderOptions struct {
+	Subject     string // overrides the template subject when non-empty
+	CompanyLine string // overrides the template's "why this company" paragraph
+}
+
+// Render builds the email. The template owns the structure and the user's real
+// content; AI (via opts) may only replace the subject and the company line.
+// The style is warm, first-person, and narrative to match the user's voice.
+func Render(p *resume.Profile, in ComposeInput, attachmentName string, opts RenderOptions) Rendered {
 	role := strings.TrimSpace(in.Role)
 	if role == "" {
 		role = strings.TrimSpace(p.TargetRole)
@@ -49,8 +58,8 @@ func Render(p *resume.Profile, in ComposeInput, attachmentName string) Rendered 
 	}
 
 	name := firstNonEmpty(p.Name, "")
-	subject := buildSubject(name, role, company)
-	paras := buildParagraphs(p, role, company)
+	subject := firstNonEmpty(strings.TrimSpace(opts.Subject), buildSubject(name, role, company))
+	paras := buildParagraphs(p, role, company, opts.CompanyLine)
 	greet := greeting(in.RecipientName)
 
 	return Rendered{
@@ -68,57 +77,62 @@ func buildSubject(name, role, company string) string {
 	return fmt.Sprintf("%s — %s interested in %s", name, role, company)
 }
 
-// buildParagraphs assembles the body as warm, narrative paragraphs.
-func buildParagraphs(p *resume.Profile, role, company string) []string {
-	var paras []string
+// The email is built from this fixed template. Only {Company} and {Role} are
+// substituted per send; paragraphs 1, 2 and 4 are never AI-touched. Paragraph 3
+// (the "passion / why this company" line) may be replaced by an AI-tailored
+// sentence, falling back to templateCompanyPara below.
+//
+// NOTE: {Company}/{Role} refer to the TARGET employer/role. Past employers named
+// in the body (Carousell, Propel) are intentionally literal and never replaced.
+const (
+	// %s = "I am <Name>" or "I am" (when no name); then %s = role, %s = company.
+	templateIntroPara = "%s, currently in my final year of B.Tech in ECE at NIT Allahabad, " +
+		"and I am applying for the %s position at %s. Having worked as a Backend Engineer Intern " +
+		"at Carousell and Propel, I gained hands-on experience in building and optimizing backend " +
+		"systems, working with technologies such as Go, Python, and various databases. This experience " +
+		"taught me how to handle real-world challenges in large-scale production environments."
 
-	// 1) Intro: who I am. Prefer the user's own pitch verbatim; else derive.
-	intro := strings.TrimSpace(p.Pitch)
-	if intro != "" {
-		if p.Name != "" {
-			intro = fmt.Sprintf("I am %s. %s", p.Name, capitalizeSentence(intro))
-		} else {
-			intro = capitalizeSentence(intro)
-		}
-	} else {
-		intro = fmt.Sprintf("I am a %s who enjoys building reliable, scalable backend systems.", role)
-		if p.Name != "" {
-			intro = fmt.Sprintf("I am %s, a %s who enjoys building reliable, scalable backend systems.", p.Name, role)
-		}
-	}
-	paras = append(paras, intro)
+	templateProjectPara = "In addition to my internships, I led the development of the MNNIT Library Book " +
+		"Allotment System, which is actively used by thousands of students. This project honed my skills " +
+		"in system design and problem-solving, and it was rewarding to see the system make a tangible impact."
 
-	// 2) A light line tying skills to the company, when we have skills.
-	if len(p.Skills) > 0 {
-		paras = append(paras, fmt.Sprintf(
-			"I work across %s, and I'd love to bring that experience to %s and contribute to the products your team is building.",
-			joinTop(p.Skills, 5), company))
-	} else {
-		paras = append(paras, fmt.Sprintf(
-			"I'd love to bring my experience to %s and contribute to the products your team is building.", company))
-	}
+	templateCompanyPara = "I am passionate about building scalable and reliable backend applications that " +
+		"can handle significant data and user loads. I look forward to the possibility of contributing to " +
+		"your team at %s and continuing to grow in a challenging environment."
 
-	// 3) Soft close + resume mention.
-	paras = append(paras, fmt.Sprintf(
-		"I've attached my resume with more detail. I'd welcome the chance to talk about a %s role at %s and how I could contribute.",
-		role, company))
+	templateClosePara = "My resume is attached for more details on my background and skills."
+)
 
-	return paras
+// DefaultCompanyLine is the fixed, safe "why this company" paragraph used when
+// AI is off or its output is unusable.
+func DefaultCompanyLine(company string) string {
+	return fmt.Sprintf(templateCompanyPara, company)
 }
 
-// capitalizeSentence ensures the text starts uppercase and ends with a period.
-func capitalizeSentence(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return s
+// buildParagraphs assembles the body from the fixed template, substituting the
+// target company/role. Only the company paragraph may be AI-supplied (falling
+// back to the template's own wording when empty).
+func buildParagraphs(p *resume.Profile, role, company, companyLine string) []string {
+	// "I am Ankit Raj" when a name exists, else just "I am".
+	iam := "I am"
+	if n := strings.TrimSpace(p.Name); n != "" {
+		iam = "I am " + n
 	}
-	r := []rune(s)
-	r[0] = []rune(strings.ToUpper(string(r[0])))[0]
-	s = string(r)
-	if !strings.HasSuffix(s, ".") && !strings.HasSuffix(s, "!") && !strings.HasSuffix(s, "?") {
-		s += "."
+
+	// 1) Intro (FIXED template; name/role/company substituted).
+	intro := fmt.Sprintf(templateIntroPara, iam, role, company)
+
+	// 2) Project paragraph (FIXED).
+	project := templateProjectPara
+
+	// 3) Passion / why-this-company paragraph (AI-TWEAKABLE; default is template).
+	companyPara := strings.TrimSpace(companyLine)
+	if companyPara == "" {
+		companyPara = DefaultCompanyLine(company)
 	}
-	return s
+
+	// 4) Close (FIXED).
+	return []string{intro, project, companyPara, templateClosePara}
 }
 
 func buildPlainText(p *resume.Profile, greet string, paras []string) string {
@@ -206,13 +220,6 @@ func signatureHTML(p *resume.Profile) string {
 
 func link(url, label string) string {
 	return fmt.Sprintf(`<a href="%s" style="color:#0b57d0;">%s</a>`, html.EscapeString(url), label)
-}
-
-func joinTop(items []string, n int) string {
-	if len(items) > n {
-		items = items[:n]
-	}
-	return strings.Join(items, ", ")
 }
 
 func firstNonEmpty(vals ...string) string {

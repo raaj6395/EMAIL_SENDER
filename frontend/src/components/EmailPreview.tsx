@@ -18,9 +18,9 @@ export function EmailPreview({
   onSend: () => void;
   sending: boolean;
 }) {
-  const isAI = rendered.source === "ai";
+  const isAI = rendered.source === "ai-tweaked";
   return (
-    <Card title="Preview & send" step={3}>
+    <Card title="Preview & send" step={2}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -28,8 +28,13 @@ export function EmailPreview({
               ? "bg-[var(--accent)]/10 text-[var(--accent)]"
               : "bg-[var(--muted)]/15 text-[var(--muted)]"
           }`}
+          title={
+            isAI
+              ? "Your template, with an AI-tailored subject and one company-specific sentence."
+              : "Your fixed template, no AI changes."
+          }
         >
-          {isAI ? "✨ Written by AI" : "📝 Template"}
+          {isAI ? "✨ Template + AI tweaks" : "📝 Template"}
         </span>
         {rendered.note && (
           <span className="text-xs text-amber-600 dark:text-amber-400">{rendered.note}</span>

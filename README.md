@@ -6,7 +6,7 @@ send it through your **Gmail** — with your resume attached automatically.
 
 - **Backend:** Go (`net/http`, [go-mail](https://github.com/wneessen/go-mail) for SMTP, [ledongthuc/pdf](https://github.com/ledongthuc/pdf) for resume parsing)
 - **Frontend:** Next.js + React + Tailwind
-- **Email:** Gmail SMTP. Emails are **written by AI** (OpenAI, tailored per company) when an OpenAI key is configured, and **automatically fall back to a built-in template** if the key is missing or the API fails — so sending never breaks.
+- **Email:** Gmail SMTP. The email is built from a **fixed, proven template** (your intro, skills, close, and signature — never altered). When an OpenAI key is set, AI adds only **small tweaks**: a tailored subject line and one company-specific sentence. If AI is off, fails, or returns something weak, it **falls back to the template's own text** — so every email is reliable and sending never breaks.
 - **Digest:** an on-demand button emails a summary of all your sends to a configured address.
 
 ---
@@ -158,10 +158,13 @@ OPENAI_MODEL=gpt-4o          # default; gpt-4o-mini is cheaper
 DIGEST_TO=you@gmail.com      # where the "Email digest" button sends
 ```
 
-- **AI on:** the header shows an "✨ AI on" badge; each preview shows whether it
-  was written by AI or the template. If OpenAI fails (bad key, quota, timeout),
-  the preview silently falls back to the template and tells you why.
-- **AI off:** just leave `OPENAI_API_KEY` unset — everything works template-only.
+- **AI on:** the header shows "✨ AI on". AI only rewrites the **subject** and the
+  single **"why this company"** sentence — your intro, skills, close, and
+  signature are always the fixed template. The preview badge shows **"Template +
+  AI tweaks"**. If the AI sentence doesn't mention the company or looks off, it's
+  discarded and the standard company line is used instead.
+- **AI off / fails:** leave `OPENAI_API_KEY` unset (or if it errors) — you get the
+  **pure template**, badge shows "Template", and the preview tells you why.
 - **Digest:** click **Email digest** in the Track section to send a summary of
   all your sends (company, recipient, status, time) to `DIGEST_TO`.
 
