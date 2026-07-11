@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 300" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <style>
+    .box { fill: #16191d; stroke: #2a2e34; stroke-width: 1.5; }
+    .fe { stroke: #0d6efd; }
+    .be { stroke: #6f42c1; }
+    .ext { fill: #101216; stroke: #2a2e34; stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .title { fill: #e8eaed; font-size: 14px; font-weight: 700; }
+    .sub { fill: #9aa0a6; font-size: 11px; }
+    .tag { font-size: 10px; font-weight: 700; }
+    .fetag { fill: #4d94ff; }
+    .betag { fill: #a98eda; }
+    .line { fill: none; stroke: #9aa0a6; stroke-width: 2; }
+    .linelbl { fill: #6b7280; font-size: 10.5px; }
+    .arrowhead { fill: #9aa0a6; }
+    .caption { fill: #6b7280; font-size: 12px; font-weight: 600; }
+  </style>
+
+  <text x="10" y="24" class="caption">ARCHITECTURE</text>
+
+  <!-- Frontend -->
+  <rect x="20" y="80" width="230" height="150" rx="14" class="box fe"/>
+  <text x="40" y="108" class="tag fetag">FRONTEND · localhost:3000</text>
+  <text x="40" y="134" class="title">Next.js + React</text>
+  <text x="40" y="158" class="sub">Dashboard UI: profile,</text>
+  <text x="40" y="176" class="sub">compose, preview, track.</text>
+  <text x="40" y="200" class="sub">Talks to the backend</text>
+  <text x="40" y="218" class="sub">over JSON/HTTP.</text>
+
+  <!-- arrow FE <-> BE -->
+  <path class="line" d="M254 155 H332"/>
+  <polygon class="arrowhead" points="332,149 344,155 332,161"/>
+  <polygon class="arrowhead" points="254,149 242,155 254,161"/>
+  <text x="258" y="145" class="linelbl">REST API</text>
+
+  <!-- Backend -->
+  <rect x="346" y="80" width="240" height="150" rx="14" class="box be"/>
+  <text x="366" y="108" class="tag betag">BACKEND · localhost:8080</text>
+  <text x="366" y="134" class="title">Go (net/http)</text>
+  <text x="366" y="158" class="sub">Parses resume PDF,</text>
+  <text x="366" y="176" class="sub">builds the email,</text>
+  <text x="366" y="194" class="sub">sends via SMTP,</text>
+  <text x="366" y="212" class="sub">holds .env + resume.</text>
+
+  <!-- arrows to external -->
+  <path class="line" d="M590 120 H668"/>
+  <polygon class="arrowhead" points="668,114 680,120 668,126"/>
+  <text x="596" y="112" class="linelbl">SMTP</text>
+
+  <path class="line" d="M590 190 H668"/>
+  <polygon class="arrowhead" points="668,184 680,190 668,196"/>
+  <text x="596" y="182" class="linelbl">HTTPS (optional)</text>
+
+  <!-- External: Gmail -->
+  <rect x="682" y="88" width="210" height="64" rx="12" class="ext"/>
+  <text x="702" y="116" class="title">Gmail SMTP</text>
+  <text x="702" y="138" class="sub">Delivers your email + resume</text>
+
+  <!-- External: OpenAI -->
+  <rect x="682" y="166" width="210" height="64" rx="12" class="ext"/>
+  <text x="702" y="194" class="title">OpenAI (optional)</text>
+  <text x="702" y="216" class="sub">Tailors subject + 1 line</text>
+
+  <text x="20" y="268" class="sub">Secrets (.env) and your resume live only on the backend and are git-ignored — never sent to the browser or committed.</text>
+</svg>

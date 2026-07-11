@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 230" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <style>
+    .box { fill: #16191d; stroke: #2a2e34; stroke-width: 1.5; }
+    .accent { fill: #0d6efd; }
+    .title { fill: #e8eaed; font-size: 14px; font-weight: 700; }
+    .desc { fill: #9aa0a6; font-size: 11px; }
+    .arrow { fill: none; stroke: #0d6efd; stroke-width: 2.5; }
+    .arrowhead { fill: #0d6efd; }
+    .caption { fill: #6b7280; font-size: 12px; font-weight: 600; }
+    .pill { fill: #0d6efd; opacity: 0.15; }
+    .pilltext { fill: #4d94ff; font-size: 10px; font-weight: 600; }
+  </style>
+
+  <text x="10" y="24" class="caption">HOW A SEND WORKS</text>
+
+  <!-- 1: You type -->
+  <rect x="10" y="60" width="180" height="110" rx="12" class="box"/>
+  <text x="26" y="90" class="title">You type</text>
+  <text x="26" y="114" class="desc">Recipient email</text>
+  <text x="26" y="132" class="desc">+ company name</text>
+  <text x="26" y="150" class="desc">(name auto-filled)</text>
+
+  <path class="arrow" d="M196 115 H222"/>
+  <polygon class="arrowhead" points="222,109 234,115 222,121"/>
+
+  <!-- 2: Template + AI -->
+  <rect x="236" y="60" width="210" height="110" rx="12" class="box"/>
+  <text x="252" y="90" class="title">Email is built</text>
+  <text x="252" y="114" class="desc">Your fixed template +</text>
+  <rect x="252" y="124" width="176" height="20" rx="10" class="pill"/>
+  <text x="262" y="138" class="pilltext">✨ AI tailors subject + 1 line</text>
+  <text x="252" y="162" class="desc">Falls back to template if AI fails</text>
+
+  <path class="arrow" d="M452 115 H478"/>
+  <polygon class="arrowhead" points="478,109 490,115 478,121"/>
+
+  <!-- 3: Preview -->
+  <rect x="492" y="60" width="180" height="110" rx="12" class="box"/>
+  <text x="508" y="90" class="title">Preview</text>
+  <text x="508" y="114" class="desc">See the exact email</text>
+  <text x="508" y="132" class="desc">+ resume attached,</text>
+  <text x="508" y="150" class="desc">then confirm.</text>
+
+  <path class="arrow" d="M678 115 H704"/>
+  <polygon class="arrowhead" points="704,109 716,115 704,121"/>
+
+  <!-- 4: Sent via Gmail -->
+  <rect x="718" y="60" width="192" height="110" rx="12" class="box"/>
+  <rect x="718" y="60" width="192" height="110" rx="12" fill="#198754" opacity="0.12"/>
+  <text x="734" y="90" class="title">Sent &amp; tracked</text>
+  <text x="734" y="114" class="desc">Delivered via Gmail</text>
+  <text x="734" y="132" class="desc">SMTP, logged in the</text>
+  <text x="734" y="150" class="desc">Track history.</text>
+
+  <text x="10" y="210" class="desc">Your resume and Gmail password stay on the backend — the browser only ever sees rendered previews.</text>
+</svg>

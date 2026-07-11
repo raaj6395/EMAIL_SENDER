@@ -11,6 +11,47 @@ send it through your **Gmail** — with your resume attached automatically.
 
 ---
 
+## Setup at a glance
+
+From a fresh laptop to sending, in four steps:
+
+![Setup flow](docs/images/setup-flow.svg)
+
+## How it works
+
+![How a send works](docs/images/how-it-works.svg)
+
+## Architecture
+
+![Architecture](docs/images/architecture.svg)
+
+---
+
+## Quick start (one command)
+
+On a fresh machine, from the project root:
+
+```bash
+./run.sh
+```
+
+`run.sh` checks your tools, creates the config files, installs dependencies, and
+launches both servers — then prints the URL to open. It walks you through the two
+things it can't do for you: adding your Gmail App Password to `backend/.env` and
+dropping your resume at `backend/data/resume.pdf`.
+
+Other modes:
+
+```bash
+./run.sh doctor   # just check prerequisites & config, change nothing
+./run.sh setup    # install deps + create config, but don't start the servers
+```
+
+Press **Ctrl-C** to stop both servers. Prefer to do it by hand? The step-by-step
+instructions below still work.
+
+---
+
 ## How it works
 
 1. Drop your resume PDF on the backend once.
