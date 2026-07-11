@@ -1,0 +1,120 @@
+package config
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+
+	"github.com/joho/godotenv"
+)
+
+// Config holds all runtime configuration for the backend.
+type Config struct {
+	GmailUser        string
+	GmailAppPassword string
+	SMTPHost         string
+	SMTPPort         int
+	Port             string // HTTP port the server listens on
+	AllowedOrigin    string // CORS origin for the frontend
+
+	OpenAIKey   string // enables AI-written emails; empty → template-only
+	OpenAIModel string // e.g. "gpt-4o"
+	DigestTo    string // recipient for the on-demand send digest
+
+	DataDir     string // directory holding resume.pdf, profile.json, history.json
+	ResumePath  string
+	ProfilePath string
+	HistoryPath string
+}
+
+// Load reads configuration from a .env file (if present) and the environment.
+// A missing .env is not fatal — real values may come from the environment.
+func Load() (*Config, error) {
+	// Best-effort: ignore error if .env doesn't exist.
+	_ = godotenv.Load()
+
+	dataDir := getenv("DATA_DIR", "data")
+	// Resolve to an absolute path so the server works regardless of CWD.
+	absData, err := filepath.Abs(dataDir)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := &Config{
+		GmailUser:        os.Getenv("GMAIL_USER"),
+		GmailAppPassword: os.Getenv("GMAIL_APP_PASSWORD"),
+		SMTPHost:         getenv("SMTP_HOST", "smtp.gmail.com"),
+		SMTPPort:         getenvInt("SMTP_PORT", 587),
+		Port:             getenv("PORT", "8080"),
+		AllowedOrigin:    getenv("ALLOWED_ORIGIN", "http://localhost:3000"),
+		OpenAIKey:        os.Getenv("OPENAI_API_KEY"),
+		OpenAIModel:      getenv("OPENAI_MODEL", "gpt-4o"),
+		DigestTo:         os.Getenv("DIGEST_TO"),
+		DataDir:          absData,
+		ResumePath:       filepath.Join(absData, "resume.pdf"),
+		ProfilePath:      filepath.Join(absData, "profile.json"),
+		HistoryPath:      filepath.Join(absData, "history.json"),
+	}
+
+	// Ensure the data directory exists so profile/history writes don't fail.
+	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+// HasCredentials reports whether Gmail SMTP credentials are configured.
+func (c *Config) HasCredentials() bool {
+	return c.GmailUser != "" && c.GmailAppPassword != ""
+}
+
+// HasAI reports whether OpenAI email generation is configured.
+func (c *Config) HasAI() bool {
+	return c.OpenAIKey != ""
+}
+
+// HasDigest reports whether a digest recipient is configured.
+func (c *Config) HasDigest() bool {
+	return c.DigestTo != ""
+}
+
+// HasResume reports whether the resume PDF exists on disk.
+func (c *Config) HasResume() bool {
+	info, err := os.Stat(c.ResumePath)
+	return err == nil && !info.IsDir() && info.Size() > 0
+}
+
+// ValidateForSend returns an error describing anything missing that would
+// prevent an email from being sent.
+func (c *Config) ValidateForSend() error {
+	if !c.HasCredentials() {
+		return errors.New("Gmail credentials missing: set GMAIL_USER and GMAIL_APP_PASSWORD in backend/.env")
+	}
+	if !c.HasResume() {
+		return errors.New("resume not found: place your resume at backend/data/resume.pdf")
+	}
+	return nil
+}
+
+func getenv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func getenvInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n := 0
+	for _, r := range v {
+		if r < '0' || r > '9' {
+			return fallback
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n
+}

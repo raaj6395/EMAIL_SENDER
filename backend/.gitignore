@@ -1,0 +1,11 @@
+# Secrets
+.env
+
+# User data (resume + generated state) — never commit
+data/resume.pdf
+data/profile.json
+data/history.json
+
+# Build artifacts
+/emailsender
+*.exe
