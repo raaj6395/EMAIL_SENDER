@@ -120,7 +120,7 @@ func buildPrompts(p *resume.Profile, in ComposeInput) (system, user string) {
 		"You will NOT write the whole email. You produce only TWO things:",
 		"1) subject: a short, specific subject line (no clickbait, no emojis, under ~9 words).",
 		"2) companyLine: a short paragraph of 1-2 sentences (max ~45 words) expressing the candidate's passion and why they look forward to contributing to THIS specific company, in a warm, sincere, first-person voice.",
-		"Rules for companyLine: start with 'I'; mention the company by name; do not invent facts, products, metrics, or claims about the company or candidate; no clichés ('I am writing to', 'I am thrilled/excited'); plain everyday words; it must read naturally as the 3rd paragraph of the email, similar in shape to this default it replaces: " + fmt.Sprintf(templateCompanyPara, in.Company),
+		"Rules for companyLine: start with 'I'; mention the company by name; keep it framed around the ROLE the candidate is applying for; do NOT name specific programming languages, frameworks, or tools (keep the contribution tech-agnostic — e.g. say 'my skills' or 'my experience', not 'Go and Python'); do not invent facts, products, metrics, or claims about the company or candidate; no clichés ('I am writing to', 'I am thrilled/excited', 'learning in a practical setting'); plain everyday words; it must read naturally as the 3rd paragraph of the email, similar in shape to this default it replaces: " + fmt.Sprintf(templateCompanyPara, in.Company),
 		"Match this candidate's natural tone: " + styleSample,
 		`Return STRICT JSON: {"subject": string, "companyLine": string}. No other text.`,
 	}, "\n")
@@ -141,8 +141,8 @@ func buildPrompts(p *resume.Profile, in ComposeInput) (system, user string) {
 }
 
 // styleSample anchors the AI to the candidate's own natural, sincere voice.
-const styleSample = "I am a 2026 B.Tech graduate who interned as a backend engineer. " +
-	"I enjoy building reliable backend applications that handle real users and large amounts of data, " +
+const styleSample = "I am a 2026 B.Tech graduate who interned as a software engineer. " +
+	"I enjoy building reliable software that solves real problems for users at scale, " +
 	"and I want to keep learning and build things that make a real impact."
 
 // sanitizeLine strips wrapping quotes/whitespace and collapses newlines so a

@@ -86,21 +86,26 @@ func buildSubject(name, role, company string) string {
 // in the body (Carousell, Propel) are intentionally literal and never replaced.
 const (
 	// %s = "I am <Name>" or "I am" (when no name); then %s = role, %s = company.
+	// Role-neutral so it fits backend, full-stack, or general SWE applications.
 	templateIntroPara = "%s, a 2026 B.Tech graduate in ECE from NIT Allahabad, " +
-		"and I am applying for the %s position at %s. Having worked as a Backend Engineer Intern " +
-		"at Carousell and Propel, I gained hands-on experience in building and optimizing backend " +
-		"systems, working with technologies such as Go, Python, and various databases. This experience " +
-		"taught me how to handle real-world challenges in large-scale production environments."
+		"and I am applying for the %s position at %s. Having interned as a software engineer " +
+		"at Carousell and Propel, I gained hands-on experience building and optimizing " +
+		"software across the stack — from APIs and databases to the services that tie them " +
+		"together — and learned how to handle real-world challenges in large-scale production environments."
 
-	templateProjectPara = "In addition to my internships, I led the development of the MNNIT Library Book " +
-		"Allotment System, which is actively used by thousands of students. This project honed my skills " +
-		"in system design and problem-solving, and it was rewarding to see the system make a tangible impact."
+	templateProjectPara = "In addition to my internships, I led the development of the MNNIT (NIT Allahabad) " +
+		"Library Book Allotment System, which is actively used by thousands of students. This project honed " +
+		"my skills in system design and problem-solving, and it was rewarding to see the system make a tangible impact."
 
-	templateCompanyPara = "I am passionate about building scalable and reliable backend applications that " +
-		"can handle significant data and user loads. I look forward to the possibility of contributing to " +
+	templateCompanyPara = "I am passionate about building reliable, well-designed software that solves real " +
+		"problems for users at scale. I look forward to the possibility of contributing to " +
 		"your team at %s and continuing to grow in a challenging environment."
 
 	templateClosePara = "My resume is attached for more details on my background and skills."
+
+	// signatureTitle is a fixed, role-neutral title shown in the email signature,
+	// so it never contradicts the specific role being applied for.
+	signatureTitle = "Software Engineer"
 )
 
 // DefaultCompanyLine is the fixed, safe "why this company" paragraph used when
@@ -163,9 +168,7 @@ func signatureText(p *resume.Profile) string {
 	if p.Name != "" {
 		lines = append(lines, p.Name)
 	}
-	if p.TargetRole != "" {
-		lines = append(lines, p.TargetRole)
-	}
+	lines = append(lines, signatureTitle)
 	var contacts []string
 	if p.Email != "" {
 		contacts = append(contacts, p.Email)
@@ -189,9 +192,7 @@ func signatureHTML(p *resume.Profile) string {
 	if p.Name != "" {
 		sb.WriteString(`<strong>` + html.EscapeString(p.Name) + `</strong><br>`)
 	}
-	if p.TargetRole != "" {
-		sb.WriteString(`<span style="color:#555;">` + html.EscapeString(p.TargetRole) + `</span><br>`)
-	}
+	sb.WriteString(`<span style="color:#555;">` + html.EscapeString(signatureTitle) + `</span><br>`)
 	var contacts []string
 	if p.Email != "" {
 		contacts = append(contacts, fmt.Sprintf(`<a href="mailto:%s" style="color:#0b57d0;">%s</a>`, html.EscapeString(p.Email), html.EscapeString(p.Email)))
