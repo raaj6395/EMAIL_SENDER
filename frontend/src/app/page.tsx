@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { SetupBanner } from "@/components/SetupBanner";
 import { ProfileEditor } from "@/components/ProfileEditor";
+import { LinkedInLookup, LookupFound } from "@/components/LinkedInLookup";
 import { ComposeForm } from "@/components/ComposeForm";
 import { EmailPreview } from "@/components/EmailPreview";
 import { SendHistory } from "@/components/SendHistory";
@@ -163,6 +164,18 @@ export default function Home() {
     }
   };
 
+  // Merge a LinkedIn lookup result into the compose form. The email is the point
+  // of the lookup so it always overwrites; name/company only fill when empty so
+  // we never clobber something the user already typed.
+  const handleLookupFound = (f: LookupFound) => {
+    setCompose((c) => ({
+      ...c,
+      recipientEmail: f.email || c.recipientEmail,
+      recipientName: c.recipientName?.trim() ? c.recipientName : f.name,
+      company: c.company.trim() ? c.company : f.company,
+    }));
+  };
+
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
       {/* Top bar */}
@@ -210,11 +223,13 @@ export default function Home() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Main workflow column */}
         <div className="space-y-5 lg:col-span-2">
+          {health?.lookupEnabled && <LinkedInLookup onFound={handleLookupFound} />}
           <ComposeForm
             input={compose}
             onChange={setCompose}
             onPreview={handlePreview}
             loading={previewing}
+            step={health?.lookupEnabled ? 2 : 1}
           />
           {rendered ? (
             <EmailPreview

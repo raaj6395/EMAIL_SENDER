@@ -9,11 +9,13 @@ export function ComposeForm({
   onChange,
   onPreview,
   loading,
+  step = 1,
 }: {
   input: ComposeInput;
   onChange: (i: ComposeInput) => void;
   onPreview: () => void;
   loading: boolean;
+  step?: number;
 }) {
   const emailValid = /\S+@\S+\.\S+/.test(input.recipientEmail.trim());
   const companyValid = input.company.trim().length > 0;
@@ -35,7 +37,7 @@ export function ComposeForm({
   };
 
   return (
-    <Card title="Compose" step={1}>
+    <Card title="Compose" step={step}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Recipient email" hint="Company & name are auto-suggested — edit if needed">
           <Input

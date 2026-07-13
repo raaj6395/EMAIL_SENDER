@@ -21,6 +21,13 @@ type Config struct {
 	OpenAIModel string // e.g. "gpt-4o"
 	DigestTo    string // recipient for the on-demand send digest
 
+	// Apify LinkedIn→email lookup (empty token → feature disabled).
+	ApifyToken        string
+	ApifyActorID      string
+	ApifyEmailField   string
+	ApifyNameField    string
+	ApifyCompanyField string
+
 	DataDir     string // directory holding resume.pdf, profile.json, history.json
 	ResumePath  string
 	ProfilePath string
@@ -50,7 +57,14 @@ func Load() (*Config, error) {
 		OpenAIKey:        os.Getenv("OPENAI_API_KEY"),
 		OpenAIModel:      getenv("OPENAI_MODEL", "gpt-4o"),
 		DigestTo:         os.Getenv("DIGEST_TO"),
-		DataDir:          absData,
+
+		ApifyToken:        os.Getenv("APIFY_TOKEN"),
+		ApifyActorID:      getenv("APIFY_ACTOR_ID", "snipercoder/linkedin-email-finder"),
+		ApifyEmailField:   getenv("APIFY_EMAIL_FIELD", "email"),
+		ApifyNameField:    getenv("APIFY_NAME_FIELD", "full_name"),
+		ApifyCompanyField: getenv("APIFY_COMPANY_FIELD", "current_company_name"),
+
+		DataDir: absData,
 		ResumePath:       filepath.Join(absData, "resume.pdf"),
 		ProfilePath:      filepath.Join(absData, "profile.json"),
 		HistoryPath:      filepath.Join(absData, "history.json"),
@@ -77,6 +91,11 @@ func (c *Config) HasAI() bool {
 // HasDigest reports whether a digest recipient is configured.
 func (c *Config) HasDigest() bool {
 	return c.DigestTo != ""
+}
+
+// HasLookup reports whether Apify LinkedIn→email lookup is configured.
+func (c *Config) HasLookup() bool {
+	return c.ApifyToken != ""
 }
 
 // HasResume reports whether the resume PDF exists on disk.

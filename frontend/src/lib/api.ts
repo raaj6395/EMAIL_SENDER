@@ -23,6 +23,7 @@ export interface Health {
   aiModel: string;
   digestEnabled: boolean;
   digestTo: string;
+  lookupEnabled: boolean;
 }
 
 export interface ComposeInput {
@@ -56,6 +57,16 @@ export interface DigestResult {
   ok: boolean;
   sentTo: string;
   count: number;
+}
+
+/** Result of a LinkedIn URL → email lookup. */
+export interface LookupResult {
+  found: boolean;
+  email: string;
+  name: string;
+  company: string;
+  confidence: string; // e.g. "92" or ""
+  status: string; // e.g. "valid" / "risky" / "unknown"
 }
 
 export interface HistoryEntry {
@@ -115,4 +126,9 @@ export const api = {
     request<SendResult>("/api/send", { method: "POST", body: JSON.stringify(input) }),
   history: () => request<HistoryEntry[]>("/api/history"),
   sendDigest: () => request<DigestResult>("/api/digest", { method: "POST" }),
+  lookup: (linkedinUrl: string) =>
+    request<LookupResult>("/api/lookup", {
+      method: "POST",
+      body: JSON.stringify({ linkedinUrl }),
+    }),
 };

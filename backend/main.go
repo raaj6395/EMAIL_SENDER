@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"emailsender/internal/config"
 	"emailsender/internal/email"
+	"emailsender/internal/lookup"
 	"emailsender/internal/resume"
 )
 
@@ -41,6 +43,7 @@ func main() {
 	mux.HandleFunc("POST /api/send", s.handleSend)
 	mux.HandleFunc("GET /api/history", s.handleHistory)
 	mux.HandleFunc("POST /api/digest", s.handleSendDigest)
+	mux.HandleFunc("POST /api/lookup", s.handleLookup)
 
 	handler := s.withCORS(mux)
 
@@ -51,6 +54,7 @@ func main() {
 	log.Printf("  gmail creds:  %v", cfg.HasCredentials())
 	log.Printf("  openai (ai):  %v (model %s)", cfg.HasAI(), cfg.OpenAIModel)
 	log.Printf("  digest to:    %v", cfg.HasDigest())
+	log.Printf("  apify lookup: %v (actor %s)", cfg.HasLookup(), cfg.ApifyActorID)
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
@@ -83,6 +87,7 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"aiModel":        s.cfg.OpenAIModel,
 		"digestEnabled":  s.cfg.HasDigest(),
 		"digestTo":       s.cfg.DigestTo,
+		"lookupEnabled":  s.cfg.HasLookup(),
 	})
 }
 
@@ -222,6 +227,41 @@ func (s *server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
+func (s *server) handleLookup(w http.ResponseWriter, r *http.Request) {
+	if !s.cfg.HasLookup() {
+		writeError(w, http.StatusBadRequest, "LinkedIn lookup not configured: set APIFY_TOKEN in backend/.env")
+		return
+	}
+	var in struct {
+		LinkedInURL string `json:"linkedinUrl"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	res, err := lookup.FindEmail(r.Context(), s.lookupConfig(), in.LinkedInURL)
+	if err != nil {
+		// A bad URL is a client error; anything else is an upstream/Apify failure.
+		if errors.Is(err, lookup.ErrInvalidURL) {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	// A successful run with no email is not an error — report found:false so the
+	// UI can prompt the user to enter the email manually.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"found":      res.Found,
+		"email":      res.Email,
+		"name":       res.Name,
+		"company":    res.Company,
+		"confidence": res.Confidence,
+		"status":     res.Status,
+	})
+}
+
 // ---- helpers ----
 
 func (s *server) smtpConfig() email.SMTPConfig {
@@ -237,6 +277,16 @@ func (s *server) aiConfig() email.AIConfig {
 	return email.AIConfig{
 		APIKey: s.cfg.OpenAIKey,
 		Model:  s.cfg.OpenAIModel,
+	}
+}
+
+func (s *server) lookupConfig() lookup.Config {
+	return lookup.Config{
+		Token:        s.cfg.ApifyToken,
+		ActorID:      s.cfg.ApifyActorID,
+		EmailField:   s.cfg.ApifyEmailField,
+		NameField:    s.cfg.ApifyNameField,
+		CompanyField: s.cfg.ApifyCompanyField,
 	}
 }
 
