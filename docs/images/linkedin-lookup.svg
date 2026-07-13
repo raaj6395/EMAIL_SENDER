@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 250" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <style>
+    .box { fill: #16191d; stroke: #2a2e34; stroke-width: 1.5; }
+    .title { fill: #e8eaed; font-size: 14px; font-weight: 700; }
+    .desc { fill: #9aa0a6; font-size: 11px; }
+    .arrow { fill: none; stroke: #0d6efd; stroke-width: 2.5; }
+    .arrowhead { fill: #0d6efd; }
+    .caption { fill: #6b7280; font-size: 12px; font-weight: 600; }
+    .pill { fill: #0d6efd; opacity: 0.15; }
+    .pilltext { fill: #4d94ff; font-size: 10px; font-weight: 600; }
+    .warn { fill: #d19a00; opacity: 0.18; }
+    .warntext { fill: #d9a400; font-size: 10px; font-weight: 600; }
+  </style>
+
+  <text x="10" y="24" class="caption">OPTIONAL: FIND EMAIL FROM A LINKEDIN URL (needs an Apify token)</text>
+
+  <!-- 1: Paste URL -->
+  <rect x="10" y="60" width="185" height="110" rx="12" class="box"/>
+  <text x="26" y="90" class="title">Paste LinkedIn URL</text>
+  <text x="26" y="114" class="desc">e.g. linkedin.com/in/</text>
+  <text x="26" y="132" class="desc">someone → click</text>
+  <text x="26" y="150" class="desc">“Find email”.</text>
+
+  <path class="arrow" d="M201 115 H227"/>
+  <polygon class="arrowhead" points="227,109 239,115 227,121"/>
+
+  <!-- 2: Apify actor -->
+  <rect x="241" y="60" width="205" height="110" rx="12" class="box"/>
+  <text x="257" y="90" class="title">Apify looks it up</text>
+  <text x="257" y="114" class="desc">Actor finds the email</text>
+  <text x="257" y="132" class="desc">from public data.</text>
+  <rect x="257" y="142" width="172" height="20" rx="10" class="warn"/>
+  <text x="267" y="156" class="warntext">⚠ coverage is hit-or-miss</text>
+
+  <path class="arrow" d="M452 115 H478"/>
+  <polygon class="arrowhead" points="478,109 490,115 478,121"/>
+
+  <!-- 3: Auto-fill compose -->
+  <rect x="492" y="60" width="190" height="110" rx="12" class="box"/>
+  <text x="508" y="90" class="title">Auto-fills Compose</text>
+  <text x="508" y="114" class="desc">Email (+ name) drop</text>
+  <text x="508" y="132" class="desc">into the form. A badge</text>
+  <text x="508" y="150" class="desc">flags low-confidence.</text>
+
+  <path class="arrow" d="M688 115 H714"/>
+  <polygon class="arrowhead" points="714,109 726,115 714,121"/>
+
+  <!-- 4: Into normal send flow -->
+  <rect x="728" y="60" width="182" height="110" rx="12" class="box"/>
+  <rect x="728" y="60" width="182" height="110" rx="12" fill="#198754" opacity="0.12"/>
+  <text x="744" y="90" class="title">Preview → Send</text>
+  <text x="744" y="114" class="desc">Continues the normal</text>
+  <text x="744" y="132" class="desc">flow — you review and</text>
+  <text x="744" y="150" class="desc">send as usual.</text>
+
+  <text x="10" y="205" class="desc">No email found? You just type it in manually. The lookup only pre-fills the form — the send flow is unchanged.</text>
+  <text x="10" y="228" class="desc">Runs against your Apify credit; disabled entirely when no APIFY_TOKEN is set.</text>
+</svg>

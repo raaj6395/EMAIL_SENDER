@@ -21,6 +21,14 @@ From a fresh laptop to sending, in four steps:
 
 ![How a send works](docs/images/how-it-works.svg)
 
+## Optional: find email from a LinkedIn URL
+
+Don't have the recipient's email? Paste their LinkedIn profile URL and the app
+looks it up (via an Apify actor), then pre-fills the compose form — the rest of
+the flow is unchanged. This feature only appears when an `APIFY_TOKEN` is set.
+
+![Find email from LinkedIn](docs/images/linkedin-lookup.svg)
+
 ## Architecture
 
 ![Architecture](docs/images/architecture.svg)
@@ -161,8 +169,10 @@ EMAIL_SENDER/
 │   │   ├── resume/parse.go         # PDF → text → profile extraction
 │   │   ├── resume/profile.go       # profile model + JSON persistence
 │   │   ├── email/template.go       # subject + HTML/plaintext body rendering
+│   │   ├── email/ai.go             # optional OpenAI subject/company-line tweaks
 │   │   ├── email/send.go           # go-mail SMTP send with attachment
-│   │   └── email/history.go        # send log (JSON)
+│   │   ├── email/history.go        # send log (JSON)
+│   │   └── lookup/apify.go         # optional LinkedIn URL → email via Apify
 │   ├── data/                       # resume.pdf, profile.json, history.json (gitignored)
 │   └── .env                        # your Gmail creds (gitignored)
 └── frontend/
@@ -186,6 +196,7 @@ EMAIL_SENDER/
 | `POST` | `/api/send` | Same input → sends via Gmail, logs history |
 | `GET`  | `/api/history` | List of past sends |
 | `POST` | `/api/digest` | Emails a summary of all sends to `DIGEST_TO` |
+| `POST` | `/api/lookup` | `{linkedinUrl}` → `{found, email, name, company, …}` via Apify |
 
 ---
 
@@ -208,6 +219,26 @@ DIGEST_TO=you@gmail.com      # where the "Email digest" button sends
   **pure template**, badge shows "Template", and the preview tells you why.
 - **Digest:** click **Email digest** in the Track section to send a summary of
   all your sends (company, recipient, status, time) to `DIGEST_TO`.
+
+## LinkedIn → email lookup (optional)
+
+Add an Apify token to `backend/.env` to enable the **"Find email from LinkedIn"**
+box (see the diagram above):
+
+```bash
+APIFY_TOKEN=apify_api_...   # from Apify Console → Settings → Integrations
+# Optional — swap the actor or remap its output field without code changes:
+# APIFY_ACTOR_ID=snipercoder/linkedin-email-finder
+# APIFY_EMAIL_FIELD=email
+```
+
+- Paste a LinkedIn profile URL → **Find email** → the result pre-fills the compose
+  form. You still Preview → Send as usual. Hidden entirely when no token is set.
+- **Coverage is hit-or-miss** — the free/cheap actors often return "no email found"
+  even when one exists. When that happens, just type the email in manually.
+- **Cost/limits:** lookups run against your Apify credit. Some actors also impose
+  their own free-run caps (e.g. a few runs/month); if you hit one, the app shows
+  the actor's message. Swap `APIFY_ACTOR_ID` to try a different actor.
 
 ## Can it tell if someone replied?
 

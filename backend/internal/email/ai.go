@@ -141,7 +141,7 @@ func buildPrompts(p *resume.Profile, in ComposeInput) (system, user string) {
 }
 
 // styleSample anchors the AI to the candidate's own natural, sincere voice.
-const styleSample = "I am a final-year B.Tech student who interned as a backend engineer. " +
+const styleSample = "I am a 2026 B.Tech graduate who interned as a backend engineer. " +
 	"I enjoy building reliable backend applications that handle real users and large amounts of data, " +
 	"and I want to keep learning and build things that make a real impact."
 

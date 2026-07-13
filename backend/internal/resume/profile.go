@@ -40,7 +40,7 @@ func DefaultProfile() *Profile {
 			"Analytics Backend Development", "Team Leadership", "Problem Solving",
 			"Competitive Programming",
 		},
-		Pitch: "I am a final year B.Tech student in ECE at NIT Allahabad. I have worked as a " +
+		Pitch: "I am a 2026 B.Tech graduate in ECE from NIT Allahabad. I have worked as a " +
 			"Backend Engineer Intern at Carousell and Propel, where I built backend features, " +
 			"optimized database queries, built background workers, and contributed to service " +
 			"migrations on large-scale production systems. I also led the development of the " +

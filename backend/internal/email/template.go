@@ -86,7 +86,7 @@ func buildSubject(name, role, company string) string {
 // in the body (Carousell, Propel) are intentionally literal and never replaced.
 const (
 	// %s = "I am <Name>" or "I am" (when no name); then %s = role, %s = company.
-	templateIntroPara = "%s, currently in my final year of B.Tech in ECE at NIT Allahabad, " +
+	templateIntroPara = "%s, a 2026 B.Tech graduate in ECE from NIT Allahabad, " +
 		"and I am applying for the %s position at %s. Having worked as a Backend Engineer Intern " +
 		"at Carousell and Propel, I gained hands-on experience in building and optimizing backend " +
 		"systems, working with technologies such as Go, Python, and various databases. This experience " +
