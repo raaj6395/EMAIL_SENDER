@@ -5,6 +5,9 @@
 data/resume.pdf
 data/profile.json
 data/history.json
+data/jobs_open.json
+data/jobs_applied.json
+data/jobs_runs.json
 
 # Build artifacts
 /emailsender

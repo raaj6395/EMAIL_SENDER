@@ -24,6 +24,7 @@ export interface Health {
   digestEnabled: boolean;
   digestTo: string;
   lookupEnabled: boolean;
+  jobsEnabled: boolean;
 }
 
 export interface ComposeInput {
@@ -78,6 +79,50 @@ export interface HistoryEntry {
   sentAt: string;
 }
 
+/** A job returned by the LinkedIn job search. */
+export interface Job {
+  id: string;
+  title: string;
+  organization: string;
+  organizationUrl: string;
+  organizationLogo: string;
+  url: string; // LinkedIn apply link
+  location: string;
+  seniority: string;
+  experienceLevel: string; // e.g. "0-2"
+  employmentType: string; // e.g. "FULL_TIME"
+  workArrangement: string; // e.g. "On-site" / "Remote"
+  datePosted: string;
+  description: string;
+  requirementsSummary: string;
+  keySkills: string[];
+}
+
+/** A job plus its AI eligibility verdict and (once applied) the applied time. */
+export interface StoredJob extends Job {
+  verdict: "eligible" | "maybe" | "not";
+  reason: string;
+  appliedAt?: string;
+}
+
+/** The persisted open + applied job lists (plus rate-limit status on load). */
+export interface JobsState {
+  open: StoredJob[];
+  applied: StoredJob[];
+  blocked?: boolean; // true when a fresh Apify run is rate-limited right now
+  retryAfter?: number; // seconds until a new run is allowed
+  lastRunAt?: string; // ISO time of the most recent Apify run
+}
+
+/** Result of a job search. `blocked` = the actor was NOT called (rate-limited). */
+export interface SearchResult {
+  open: StoredJob[];
+  added: number; // count of newly-added jobs
+  blocked: boolean; // true when a real run happened within the rate-limit window
+  retryAfter: number; // seconds until a new run is allowed
+  lastRunAt?: string; // ISO time of the most recent Apify run (when blocked)
+}
+
 export const emptyProfile = (): Profile => ({
   name: "",
   email: "",
@@ -130,5 +175,16 @@ export const api = {
     request<LookupResult>("/api/lookup", {
       method: "POST",
       body: JSON.stringify({ linkedinUrl }),
+    }),
+  searchJobs: (roles?: string[]) =>
+    request<SearchResult>("/api/jobs/search", {
+      method: "POST",
+      body: JSON.stringify({ roles }),
+    }),
+  jobs: () => request<JobsState>("/api/jobs"),
+  markApplied: (id: string) =>
+    request<JobsState>("/api/jobs/applied", {
+      method: "POST",
+      body: JSON.stringify({ id }),
     }),
 };

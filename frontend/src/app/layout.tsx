@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { NavBar } from "@/components/NavBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Resume Cold-Email Sender",
-  description: "Send a tailored resume email to any company via Gmail SMTP.",
+  title: "Job Hunt Toolkit",
+  description: "Find fresher software jobs and send tailored resume emails.",
 };
 
 export default function RootLayout({
@@ -27,7 +28,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <NavBar />
+        {children}
+      </body>
     </html>
   );
 }

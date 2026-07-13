@@ -1,12 +1,18 @@
-# Resume Cold-Email Sender
+# Resume Cold-Email Sender + Job Search
 
-A local web app to send a tailored resume email to any company. Type a recipient
-email + company name, preview a personalized email (built from your resume), and
-send it through your **Gmail** — with your resume attached automatically.
+A local web app with two tools for a fresher's job hunt, reached via a top nav bar:
+
+- **✉️ Email Sender** — send a tailored resume email to any company. Type a
+  recipient email + company name, preview a personalized email (built from your
+  resume), and send it through your **Gmail** — resume attached automatically.
+- **💼 Job Search** (`/jobs`) — find the latest fresher (0–1 yr) software jobs in
+  India, AI-screened for eligibility, in an **Open jobs** list; clicking **Apply**
+  opens the job on LinkedIn and moves it to your **Applied** list.
 
 - **Backend:** Go (`net/http`, [go-mail](https://github.com/wneessen/go-mail) for SMTP, [ledongthuc/pdf](https://github.com/ledongthuc/pdf) for resume parsing)
 - **Frontend:** Next.js + React + Tailwind
 - **Email:** Gmail SMTP. The email is built from a **fixed, proven template** (your intro, skills, close, and signature — never altered). When an OpenAI key is set, AI adds only **small tweaks**: a tailored subject line and one company-specific sentence. If AI is off, fails, or returns something weak, it **falls back to the template's own text** — so every email is reliable and sending never breaks.
+- **Job Search:** an [Apify actor](https://apify.com/fantastic-jobs/advanced-linkedin-job-search-api) fetches jobs (filtered server-side to India + fresher roles); OpenAI gives each a quick eligibility verdict. Runs **at most once every 6 hours** (a persistent run log guards your Apify credit).
 - **Digest:** an on-demand button emails a summary of all your sends to a configured address.
 
 ---
@@ -28,6 +34,16 @@ looks it up (via an Apify actor), then pre-fills the compose form — the rest o
 the flow is unchanged. This feature only appears when an `APIFY_TOKEN` is set.
 
 ![Find email from LinkedIn](docs/images/linkedin-lookup.svg)
+
+## Optional: Job Search (find & track fresher jobs)
+
+A separate page (**💼 Job Search**, at `/jobs`) that finds the latest fresher
+(0–1 yr) software jobs in India, has AI check each for eligibility, lists the good
+ones under **Open jobs**, and — when you click **Apply** — opens the job on
+LinkedIn and moves the card to **Applied**. It only appears when an `APIFY_TOKEN`
+is set, and runs **at most once every 6 hours** to protect your Apify credit.
+
+![Job Search flow](docs/images/job-search.svg)
 
 ## Architecture
 
@@ -172,14 +188,20 @@ EMAIL_SENDER/
 │   │   ├── email/ai.go             # optional OpenAI subject/company-line tweaks
 │   │   ├── email/send.go           # go-mail SMTP send with attachment
 │   │   ├── email/history.go        # send log (JSON)
-│   │   └── lookup/apify.go         # optional LinkedIn URL → email via Apify
-│   ├── data/                       # resume.pdf, profile.json, history.json (gitignored)
+│   │   ├── lookup/apify.go         # optional LinkedIn URL → email via Apify
+│   │   └── jobs/                   # optional Job Search
+│   │       ├── apify.go            # fetch fresher India jobs (server-side filters)
+│   │       ├── eligibility.go      # OpenAI eligibility verdict per job
+│   │       └── store.go            # open/applied lists + 6h run log (JSON)
+│   ├── data/                       # resume.pdf, profile.json, history.json, jobs_*.json (gitignored)
 │   └── .env                        # your Gmail creds (gitignored)
 └── frontend/
     └── src/
-        ├── app/page.tsx            # the stepped flow
+        ├── app/page.tsx            # Email Sender (the stepped flow)
+        ├── app/jobs/page.tsx       # Job Search page
+        ├── app/layout.tsx          # root layout + top NavBar
         ├── lib/api.ts              # typed backend client
-        └── components/             # ProfileEditor, ComposeForm, EmailPreview, …
+        └── components/             # NavBar, JobSearch, ProfileEditor, ComposeForm, …
 ```
 
 ---
@@ -197,6 +219,9 @@ EMAIL_SENDER/
 | `GET`  | `/api/history` | List of past sends |
 | `POST` | `/api/digest` | Emails a summary of all sends to `DIGEST_TO` |
 | `POST` | `/api/lookup` | `{linkedinUrl}` → `{found, email, name, company, …}` via Apify |
+| `POST` | `/api/jobs/search` | Fetch + AI-screen fresher India jobs → `{open, added, blocked, retryAfter}`. Rate-limited to once/6h |
+| `GET`  | `/api/jobs` | `{open, applied, blocked, retryAfter}` — the saved job lists + rate-limit status |
+| `POST` | `/api/jobs/applied` | `{id}` → move a job from Open to Applied → `{open, applied}` |
 
 ---
 
@@ -239,6 +264,31 @@ APIFY_TOKEN=apify_api_...   # from Apify Console → Settings → Integrations
 - **Cost/limits:** lookups run against your Apify credit. Some actors also impose
   their own free-run caps (e.g. a few runs/month); if you hit one, the app shows
   the actor's message. Swap `APIFY_ACTOR_ID` to try a different actor.
+
+## Job Search (optional)
+
+The same `APIFY_TOKEN` also enables the **💼 Job Search** page at `/jobs` (see the
+diagram above). No extra secret is needed:
+
+```bash
+APIFY_TOKEN=apify_api_...            # same token as the LinkedIn lookup
+# Optional — swap the job-search actor without code changes:
+# APIFY_JOBS_ACTOR_ID=vIGxjRrHqDTPuE6M4   # fantastic-jobs/advanced-linkedin-job-search-api
+```
+
+- **What it does:** one click fetches the latest fresher (0–1 yr) software jobs in
+  India — the actor filters by title, location, and experience **server-side**, so
+  only relevant jobs come back. OpenAI then gives each a quick verdict
+  (**eligible** / **maybe**, with a one-line reason); clearly-senior jobs are
+  dropped. Eligible jobs go to **Open**; clicking **Apply** opens LinkedIn and
+  moves the card to **Applied**.
+- **Rate limit — protects your credit:** a real Apify run happens **at most once
+  every 6 hours**. Repeat clicks within that window just show your saved jobs (no
+  new billing), and the button is disabled with a "next search in ~Nh" note. Every
+  actual run is recorded in `backend/data/jobs_runs.json`.
+- **Persistence:** the Open and Applied lists live in
+  `backend/data/jobs_open.json` and `jobs_applied.json`, so they survive restarts.
+  Jobs are de-duped by id, and an applied job never re-appears in Open.
 
 ## Can it tell if someone replied?
 

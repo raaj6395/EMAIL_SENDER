@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 280" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <style>
+    .box { fill: #16191d; stroke: #2a2e34; stroke-width: 1.5; }
+    .title { fill: #e8eaed; font-size: 14px; font-weight: 700; }
+    .desc { fill: #9aa0a6; font-size: 11px; }
+    .arrow { fill: none; stroke: #0d6efd; stroke-width: 2.5; }
+    .arrowhead { fill: #0d6efd; }
+    .caption { fill: #6b7280; font-size: 12px; font-weight: 600; }
+    .pill { fill: #0d6efd; opacity: 0.15; }
+    .pilltext { fill: #4d94ff; font-size: 10px; font-weight: 600; }
+    .ok { fill: #198754; opacity: 0.15; }
+    .oktext { fill: #34c77b; font-size: 10px; font-weight: 600; }
+    .warn { fill: #d19a00; opacity: 0.18; }
+    .warntext { fill: #d9a400; font-size: 10px; font-weight: 600; }
+  </style>
+
+  <text x="10" y="24" class="caption">OPTIONAL: JOB SEARCH — FRESHER SOFTWARE ROLES IN INDIA (needs an Apify token)</text>
+
+  <!-- 1: Find jobs -->
+  <rect x="10" y="60" width="195" height="120" rx="12" class="box"/>
+  <text x="26" y="90" class="title">Click “Find jobs”</text>
+  <text x="26" y="114" class="desc">One click fetches the</text>
+  <text x="26" y="132" class="desc">latest postings.</text>
+  <rect x="26" y="146" width="150" height="20" rx="10" class="warn"/>
+  <text x="36" y="160" class="warntext">⏳ at most once / 6 hours</text>
+
+  <path class="arrow" d="M211 120 H237"/>
+  <polygon class="arrowhead" points="237,114 249,120 237,126"/>
+
+  <!-- 2: Apify actor with server-side filters -->
+  <rect x="251" y="60" width="210" height="120" rx="12" class="box"/>
+  <text x="267" y="90" class="title">Apify fetches jobs</text>
+  <text x="267" y="112" class="desc">Filtered at the source:</text>
+  <rect x="267" y="120" width="70" height="18" rx="9" class="pill"/>
+  <text x="276" y="133" class="pilltext">India</text>
+  <rect x="343" y="120" width="82" height="18" rx="9" class="pill"/>
+  <text x="352" y="133" class="pilltext">0–1 yr (0-2)</text>
+  <text x="267" y="158" class="desc">SWE / SDE / Backend</text>
+  <text x="267" y="174" class="desc">roles, last 24 hours.</text>
+
+  <path class="arrow" d="M467 120 H493"/>
+  <polygon class="arrowhead" points="493,114 505,120 493,126"/>
+
+  <!-- 3: AI eligibility -->
+  <rect x="507" y="60" width="190" height="120" rx="12" class="box"/>
+  <text x="523" y="90" class="title">AI screens each</text>
+  <text x="523" y="112" class="desc">Reads the description →</text>
+  <rect x="523" y="120" width="70" height="18" rx="9" class="ok"/>
+  <text x="532" y="133" class="oktext">eligible</text>
+  <rect x="599" y="120" width="62" height="18" rx="9" class="warn"/>
+  <text x="608" y="133" class="warntext">maybe</text>
+  <text x="523" y="158" class="desc">with a one-line reason.</text>
+  <text x="523" y="174" class="desc">Clearly-senior → dropped.</text>
+
+  <path class="arrow" d="M703 120 H729"/>
+  <polygon class="arrowhead" points="729,114 741,120 729,126"/>
+
+  <!-- 4: Open -> Applied -->
+  <rect x="743" y="60" width="167" height="120" rx="12" class="box"/>
+  <rect x="743" y="60" width="167" height="120" rx="12" fill="#198754" opacity="0.12"/>
+  <text x="759" y="90" class="title">Open → Applied</text>
+  <text x="759" y="114" class="desc">Eligible jobs land in</text>
+  <text x="759" y="132" class="desc">Open. Click “Apply” to</text>
+  <text x="759" y="150" class="desc">open LinkedIn — the card</text>
+  <text x="759" y="168" class="desc">moves to Applied.</text>
+
+  <text x="10" y="222" class="desc">Runs at most once every 6 hours (a persistent run log guards your Apify credit); repeat clicks show your saved jobs, no new billing.</text>
+  <text x="10" y="245" class="desc">Open + Applied lists persist on disk. Lives on its own page (/jobs) via the top nav. Disabled entirely when no APIFY_TOKEN is set.</text>
+</svg>

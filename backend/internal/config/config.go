@@ -28,6 +28,12 @@ type Config struct {
 	ApifyNameField    string
 	ApifyCompanyField string
 
+	// LinkedIn job search (reuses ApifyToken; empty token → feature disabled).
+	JobsActorID     string
+	JobsOpenPath    string
+	JobsAppliedPath string
+	JobsRunsPath    string // log of actual (paid) Apify runs, for the rate-limit window
+
 	DataDir     string // directory holding resume.pdf, profile.json, history.json
 	ResumePath  string
 	ProfilePath string
@@ -64,6 +70,11 @@ func Load() (*Config, error) {
 		ApifyNameField:    getenv("APIFY_NAME_FIELD", "full_name"),
 		ApifyCompanyField: getenv("APIFY_COMPANY_FIELD", "current_company_name"),
 
+		JobsActorID:     getenv("APIFY_JOBS_ACTOR_ID", "vIGxjRrHqDTPuE6M4"),
+		JobsOpenPath:    filepath.Join(absData, "jobs_open.json"),
+		JobsAppliedPath: filepath.Join(absData, "jobs_applied.json"),
+		JobsRunsPath:    filepath.Join(absData, "jobs_runs.json"),
+
 		DataDir: absData,
 		ResumePath:       filepath.Join(absData, "resume.pdf"),
 		ProfilePath:      filepath.Join(absData, "profile.json"),
@@ -95,6 +106,12 @@ func (c *Config) HasDigest() bool {
 
 // HasLookup reports whether Apify LinkedIn→email lookup is configured.
 func (c *Config) HasLookup() bool {
+	return c.ApifyToken != ""
+}
+
+// HasJobs reports whether the LinkedIn job search is configured. It reuses the
+// Apify token, so it's on whenever Apify is configured.
+func (c *Config) HasJobs() bool {
 	return c.ApifyToken != ""
 }
 
