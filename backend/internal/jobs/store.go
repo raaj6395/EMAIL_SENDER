@@ -50,9 +50,10 @@ func saveJobsLocked(path string, jobs []StoredJob) error {
 }
 
 // LoadOpen reads the open-jobs list for display, hiding anything that shouldn't
-// appear in Open: blocked-company listings, and any job already in the applied
-// list (so an applied job never re-surfaces in Open, even if it lingered in the
-// file from an older run). Missing file → empty slice.
+// appear in Open: blocked-company listings, content-duplicate postings (the
+// actor returns the same job with different IDs), and any job already in the
+// applied list (so an applied job never re-surfaces in Open, even if it lingered
+// in the file from an older run). Missing file → empty slice.
 func LoadOpen(openPath, appliedPath string) ([]StoredJob, error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
@@ -64,15 +65,18 @@ func LoadOpen(openPath, appliedPath string) ([]StoredJob, error) {
 	if err != nil {
 		return nil, err
 	}
-	appliedIDs := make(map[string]bool, len(applied))
+	// Seed the seen-set with applied jobs so applied postings are hidden from Open.
+	seen := make(map[string]bool, len(applied)+len(jobs))
 	for _, j := range applied {
-		appliedIDs[j.ID] = true
+		seen[j.DedupKey()] = true
 	}
 	filtered := jobs[:0]
 	for _, j := range jobs {
-		if isBlockedCompany(j.Organization) || appliedIDs[j.ID] {
-			continue
+		key := j.DedupKey()
+		if isBlockedCompany(j.Organization) || seen[key] {
+			continue // blocked, already-applied, or a duplicate we've kept once
 		}
+		seen[key] = true
 		filtered = append(filtered, j)
 	}
 	return filtered, nil
@@ -85,10 +89,12 @@ func LoadApplied(appliedPath string) ([]StoredJob, error) {
 	return loadJobsLocked(appliedPath)
 }
 
-// MergeOpen adds freshly-fetched jobs to the open list, de-duped by Job.ID and
-// excluding any job already present in the applied list (so a job you've applied
-// to never reappears). Newly-added jobs are prepended (newest first). It returns
-// the resulting open list (never nil) and the count of newly-added jobs.
+// MergeOpen adds freshly-fetched jobs to the open list, de-duped by content
+// (Job.DedupKey — the actor returns the same posting with different IDs, so ID
+// dedup isn't enough) and excluding any job already present in the applied list
+// (so a job you've applied to never reappears). Newly-added jobs are prepended
+// (newest first). It returns the resulting open list (never nil) and the count
+// of newly-added jobs.
 func MergeOpen(openPath, appliedPath string, incoming []StoredJob) (open []StoredJob, added int, err error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
@@ -104,18 +110,19 @@ func MergeOpen(openPath, appliedPath string, incoming []StoredJob) (open []Store
 
 	seen := make(map[string]bool, len(open)+len(applied))
 	for _, j := range open {
-		seen[j.ID] = true
+		seen[j.DedupKey()] = true
 	}
 	for _, j := range applied {
-		seen[j.ID] = true
+		seen[j.DedupKey()] = true
 	}
 
 	fresh := make([]StoredJob, 0, len(incoming))
 	for _, j := range incoming {
-		if j.ID == "" || seen[j.ID] {
+		key := j.DedupKey()
+		if j.ID == "" || seen[key] {
 			continue
 		}
-		seen[j.ID] = true
+		seen[key] = true
 		fresh = append(fresh, j)
 	}
 

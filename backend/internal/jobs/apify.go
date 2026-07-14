@@ -42,6 +42,14 @@ type Job struct {
 	KeySkills           []string `json:"keySkills"`
 }
 
+// DedupKey identifies the "same" posting for de-duplication. The actor often
+// returns the identical job several times with different IDs, so we key on the
+// content (title + company + location), normalized, rather than the ID.
+func (j Job) DedupKey() string {
+	norm := func(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+	return norm(j.Title) + "|" + norm(j.Organization) + "|" + norm(j.Location)
+}
+
 // DefaultRoles are the software roles the user wants when the request omits any.
 var DefaultRoles = []string{
 	"Software Engineer",
