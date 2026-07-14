@@ -298,7 +298,7 @@ func (s *server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 	// actor. Return the saved open list with blocked=true. Not overridable.
 	if last, ok := jobs.LastRunTime(s.cfg.JobsRunsPath); ok {
 		if retryAfter := jobRunWindow - time.Since(last); retryAfter > 0 {
-			open, err := jobs.LoadOpen(s.cfg.JobsOpenPath)
+			open, err := jobs.LoadOpen(s.cfg.JobsOpenPath, s.cfg.JobsAppliedPath)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "could not read jobs: "+err.Error())
 				return
@@ -382,7 +382,7 @@ func (s *server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 
 // handleJobsList returns the persisted open and applied job lists.
 func (s *server) handleJobsList(w http.ResponseWriter, r *http.Request) {
-	open, err := jobs.LoadOpen(s.cfg.JobsOpenPath)
+	open, err := jobs.LoadOpen(s.cfg.JobsOpenPath, s.cfg.JobsAppliedPath)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read open jobs: "+err.Error())
 		return

@@ -54,6 +54,28 @@ var DefaultRoles = []string{
 // DefaultLocation is the location filter used when none is given.
 const DefaultLocation = "India"
 
+// blockedCompanies are organizations whose listings are dropped entirely — some
+// companies post the same role many times per fetch and spam the Open list.
+// Matching is case-insensitive and by substring, so "scoutit" also catches
+// "Scoutit Technologies". Add more names here to hide them.
+var blockedCompanies = []string{
+	"Scoutit",
+}
+
+// isBlockedCompany reports whether org matches any entry in blockedCompanies.
+func isBlockedCompany(org string) bool {
+	o := strings.ToLower(strings.TrimSpace(org))
+	if o == "" {
+		return false
+	}
+	for _, b := range blockedCompanies {
+		if strings.Contains(o, strings.ToLower(strings.TrimSpace(b))) {
+			return true
+		}
+	}
+	return false
+}
+
 const apifyBase = "https://api.apify.com/v2/acts"
 
 // Search runs the configured Apify actor filtered to the given roles + location
@@ -148,6 +170,11 @@ func Search(ctx context.Context, cfg SearchConfig, roles []string, location stri
 		}
 		// Skip malformed items with no usable identity or link.
 		if j.ID == "" || j.URL == "" {
+			continue
+		}
+		// Skip blocked companies (spammy repeat-posters). Dropping them here means
+		// they never reach the AI eligibility step either — no wasted OpenAI calls.
+		if isBlockedCompany(j.Organization) {
 			continue
 		}
 		out = append(out, j)

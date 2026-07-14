@@ -49,11 +49,33 @@ func saveJobsLocked(path string, jobs []StoredJob) error {
 	return os.WriteFile(path, b, 0o644)
 }
 
-// LoadOpen reads the open-jobs list. Missing file → empty slice.
-func LoadOpen(openPath string) ([]StoredJob, error) {
+// LoadOpen reads the open-jobs list for display, hiding anything that shouldn't
+// appear in Open: blocked-company listings, and any job already in the applied
+// list (so an applied job never re-surfaces in Open, even if it lingered in the
+// file from an older run). Missing file → empty slice.
+func LoadOpen(openPath, appliedPath string) ([]StoredJob, error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
-	return loadJobsLocked(openPath)
+	jobs, err := loadJobsLocked(openPath)
+	if err != nil {
+		return nil, err
+	}
+	applied, err := loadJobsLocked(appliedPath)
+	if err != nil {
+		return nil, err
+	}
+	appliedIDs := make(map[string]bool, len(applied))
+	for _, j := range applied {
+		appliedIDs[j.ID] = true
+	}
+	filtered := jobs[:0]
+	for _, j := range jobs {
+		if isBlockedCompany(j.Organization) || appliedIDs[j.ID] {
+			continue
+		}
+		filtered = append(filtered, j)
+	}
+	return filtered, nil
 }
 
 // LoadApplied reads the applied-jobs list. Missing file → empty slice.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run.sh — one-command setup + launch for the Resume Cold-Email Sender.
+# run.sh — one-command setup + launch for the Resume Cold-Email Sender + Job Search.
 #
 # On a fresh laptop this will:
 #   1. Check that Go and Node are installed (and new enough).
@@ -110,7 +110,8 @@ setup_backend_env() {
     printf "    %sGMAIL_APP_PASSWORD%s=<16-char app password>\n" "$DIM" "$RESET"
     printf "  Generate an App Password (needs 2-Step Verification ON):\n"
     printf "    %shttps://myaccount.google.com/apppasswords%s\n" "$DIM" "$RESET"
-    printf "  (Optional) add OPENAI_API_KEY for AI-tailored emails.\n"
+    printf "  (Optional) add OPENAI_API_KEY for AI-tailored emails + job eligibility.\n"
+    printf "  (Optional) add APIFY_TOKEN to enable the LinkedIn lookup + Job Search page.\n"
   fi
 
   # Warn if the credentials still look like placeholders.
@@ -219,6 +220,8 @@ run_servers() {
 
   printf "\n%s%s========================================%s\n" "$BOLD" "$GREEN" "$RESET"
   printf "  %sReady!%s Open %shttp://localhost:%s%s in your browser.\n" "$BOLD" "$RESET" "$BOLD" "$FRONTEND_PORT" "$RESET"
+  printf "    • Email Sender: http://localhost:%s/\n" "$FRONTEND_PORT"
+  printf "    • Job Search:   http://localhost:%s/jobs  (needs APIFY_TOKEN)\n" "$FRONTEND_PORT"
   printf "  Backend API: http://localhost:%s\n" "$BACKEND_PORT"
   printf "  Press %sCtrl-C%s to stop both servers.\n" "$BOLD" "$RESET"
   printf "%s%s========================================%s\n\n" "$BOLD" "$GREEN" "$RESET"
