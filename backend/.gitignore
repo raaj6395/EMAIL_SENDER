@@ -10,6 +10,7 @@ data/jobs_applied.json
 data/jobs_runs.json
 data/*.xlsx
 data/company_ranks.json
+data/hr_sent.json
 
 # Build artifacts
 /emailsender

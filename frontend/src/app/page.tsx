@@ -7,6 +7,7 @@ import {
   ComposeResult,
   Health,
   HistoryEntry,
+  MarkSentInput,
   Profile,
   api,
   emptyProfile,
@@ -45,6 +46,9 @@ export default function Home() {
   const [compose, setCompose] = useState<ComposeInput>({ recipientEmail: "", recipientName: "", company: "", role: "" });
   const [rendered, setRendered] = useState<ComposeResult | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // When composing to a contact from the Email HR page, this marks them "sent"
+  // after the email actually goes out.
+  const [pendingHRSent, setPendingHRSent] = useState<MarkSentInput | null>(null);
 
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -87,14 +91,16 @@ export default function Home() {
       .then(setProfile)
       .catch(() => {});
 
-    // If we arrived here from the Email HR page, prefill the compose form.
+    // If we arrived here from the Email HR page, prefill the compose form and
+    // remember the contact so we can mark it "sent" after the email goes out.
     const prefill = takeComposePrefill();
     if (prefill) {
-      setCompose((c) => ({ ...c, ...prefill }));
+      setCompose((c) => ({ ...c, ...prefill.input }));
+      if (prefill.hrSent) setPendingHRSent(prefill.hrSent);
       setToast({
         kind: "info",
-        message: `Composing to ${prefill.recipientName || prefill.recipientEmail}${
-          prefill.company ? ` at ${prefill.company}` : ""
+        message: `Composing to ${prefill.input.recipientName || prefill.input.recipientEmail}${
+          prefill.input.company ? ` at ${prefill.input.company}` : ""
         }. Preview → Send when ready.`,
       });
     }
@@ -153,6 +159,11 @@ export default function Home() {
       setToast({ kind: "success", message: `Sent ${how} email to ${res.sentTo} ✓` });
       setRendered(null);
       setCompose({ recipientEmail: "", recipientName: "", company: "", role: "" });
+      // If this send originated from the Email HR page, move that contact to Sent.
+      if (pendingHRSent) {
+        api.hrMarkSent(pendingHRSent).catch(() => {});
+        setPendingHRSent(null);
+      }
       await Promise.all([refreshHistory(), refreshHealth()]);
     } catch (e) {
       setToast({ kind: "error", message: errMsg(e) });

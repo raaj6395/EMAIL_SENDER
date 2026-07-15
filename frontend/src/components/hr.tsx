@@ -1,8 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, HRContact, HRPage } from "@/lib/api";
+import { ApiError, HRContact, HRPage, HRRateStatus, HRSentRecord } from "@/lib/api";
 import { Button, Input } from "./ui";
+
+function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 /**
  * useHRContacts loads one page of HR contacts (WhatsApp or Email) with debounced
@@ -13,6 +24,8 @@ export function useHRContacts(
 ) {
   const pageSize = 50;
   const [contacts, setContacts] = useState<HRContact[]>([]);
+  const [sent, setSent] = useState<HRSentRecord[]>([]);
+  const [rate, setRate] = useState<HRRateStatus | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
@@ -26,6 +39,8 @@ export function useHRContacts(
       try {
         const res = await fetcher({ page: p, pageSize, q: query });
         setContacts(res.contacts ?? []);
+        setSent(res.sent ?? []);
+        if (res.rate) setRate(res.rate);
         setTotal(res.total ?? 0);
         setPage(res.page ?? p);
       } catch (e) {
@@ -50,7 +65,7 @@ export function useHRContacts(
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const goto = (p: number) => load(Math.min(Math.max(1, p), totalPages), q);
 
-  return { contacts, total, page, totalPages, q, setQ, loading, error, goto, reload: () => load(page, q) };
+  return { contacts, sent, rate, setRate, total, page, totalPages, q, setQ, loading, error, goto, reload: () => load(page, q) };
 }
 
 /** Search box + result count, shared by both HR pages. */
@@ -124,5 +139,46 @@ export function RankBadge({ rank }: { rank: number }) {
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`} title="Company importance (AI-ranked)">
       ★ {rank}
     </span>
+  );
+}
+
+/** The "Sent" section: contacts already reached out to on this channel. */
+export function SentSection({ sent }: { sent: HRSentRecord[] }) {
+  return (
+    <div className="mt-8">
+      <div className="mb-2 text-sm font-medium">
+        Sent{sent.length > 0 && <span className="text-[var(--muted)]"> · {sent.length}</span>}
+      </div>
+      {sent.length === 0 ? (
+        <div className="text-sm text-[var(--muted)]">
+          Nothing sent yet. Contacts move here once you reach out.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {sent.map((s, i) => (
+            <div
+              key={`${s.key}-${i}`}
+              className="flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5 text-sm"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                  <span className="font-medium">{s.name || "(no name)"}</span>
+                  <span className="truncate text-[var(--muted)]">
+                    {[s.company, s.role].filter(Boolean).join(" · ")}
+                  </span>
+                </div>
+                <div className="mt-0.5 truncate pl-4 font-mono text-xs text-[var(--muted)]">
+                  {s.email || s.phone}
+                </div>
+              </div>
+              <span className="shrink-0 whitespace-nowrap text-xs text-[var(--muted)]">
+                {formatWhen(s.sentAt)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

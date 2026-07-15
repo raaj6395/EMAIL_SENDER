@@ -39,6 +39,7 @@ type Config struct {
 	// xlsx exists on disk.
 	HRDataPath      string
 	HRRanksPath     string // cached company importance scores
+	HRSentPath      string // contacts already reached out to
 
 	DataDir     string // directory holding resume.pdf, profile.json, history.json
 	ResumePath  string
@@ -84,6 +85,7 @@ func Load() (*Config, error) {
 
 		HRDataPath:  getenv("HR_DATA_PATH", filepath.Join(absData, "HR DATA (1).xlsx")),
 		HRRanksPath: filepath.Join(absData, "company_ranks.json"),
+		HRSentPath:  filepath.Join(absData, "hr_sent.json"),
 
 		DataDir: absData,
 		ResumePath:       filepath.Join(absData, "resume.pdf"),

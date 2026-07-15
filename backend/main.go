@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -54,6 +55,7 @@ func main() {
 	mux.HandleFunc("GET /api/hr/whatsapp", s.handleHRWhatsApp)
 	mux.HandleFunc("GET /api/hr/email", s.handleHREmail)
 	mux.HandleFunc("POST /api/hr/rerank", s.handleHRRerank)
+	mux.HandleFunc("POST /api/hr/sent", s.handleHRMarkSent)
 
 	handler := s.withCORS(mux)
 
@@ -492,6 +494,27 @@ func (s *server) serveHRContacts(w http.ResponseWriter, r *http.Request, isEmail
 	}
 	hr.ApplyRanksAndSort(contacts, ranks)
 
+	// Hide contacts already reached out to on this channel — they belong in the
+	// Sent section instead.
+	channel := "whatsapp"
+	if isEmail {
+		channel = "email"
+	}
+	sentKeys, err := hr.SentKeys(s.cfg.HRSentPath, channel)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read sent list: "+err.Error())
+		return
+	}
+	if len(sentKeys) > 0 {
+		kept := contacts[:0]
+		for _, c := range contacts {
+			if !sentKeys[c.Key()] {
+				kept = append(kept, c)
+			}
+		}
+		contacts = kept
+	}
+
 	// Optional search across company/name/role/email.
 	if q := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("q"))); q != "" {
 		filtered := contacts[:0]
@@ -519,12 +542,128 @@ func (s *server) serveHRContacts(w http.ResponseWriter, r *http.Request, isEmail
 		pageItems = []hr.Contact{}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	// Sent list for this channel (full, newest first — small enough to send whole).
+	sent, err := s.hrSentForChannel(channel)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read sent list: "+err.Error())
+		return
+	}
+
+	resp := map[string]any{
 		"contacts": pageItems,
 		"total":    total,
 		"page":     page,
 		"pageSize": pageSize,
-	})
+		"sent":     sent,
+	}
+	// WhatsApp also reports the current send-rate status so the UI can show the
+	// cooldown countdown / daily-cap state on load.
+	if !isEmail {
+		if rs, err := hr.WhatsAppRateStatus(s.cfg.HRSentPath); err == nil {
+			resp["rate"] = rs
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// hrSentForChannel returns the sent records for one channel, newest first.
+func (s *server) hrSentForChannel(channel string) ([]hr.SentRecord, error) {
+	all, err := hr.LoadSent(s.cfg.HRSentPath)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]hr.SentRecord, 0, len(all))
+	for _, r := range all {
+		if r.Channel == channel {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// handleHRMarkSent records a contact as reached out to. Body carries the
+// contact fields + channel. Returns the updated sent list for that channel.
+func (s *server) handleHRMarkSent(w http.ResponseWriter, r *http.Request) {
+	if !s.cfg.HasHR() {
+		writeError(w, http.StatusBadRequest, "HR data not found")
+		return
+	}
+	var in struct {
+		Channel string `json:"channel"` // "email" | "whatsapp"
+		Company string `json:"company"`
+		Name    string `json:"name"`
+		Role    string `json:"role"`
+		Email   string `json:"email"`
+		Phone   string `json:"phone"`
+		Key     string `json:"key"` // optional explicit key; else derived
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if in.Channel != "email" && in.Channel != "whatsapp" {
+		writeError(w, http.StatusBadRequest, "channel must be 'email' or 'whatsapp'")
+		return
+	}
+	key := strings.TrimSpace(strings.ToLower(in.Key))
+	if key == "" {
+		if e := strings.TrimSpace(strings.ToLower(in.Email)); e != "" {
+			key = e
+		} else {
+			key = strings.TrimSpace(in.Phone)
+		}
+	}
+	if key == "" {
+		writeError(w, http.StatusBadRequest, "a contact key (email or phone) is required")
+		return
+	}
+
+	// Enforce WhatsApp send-rate limits server-side so a fast/over-cap send is
+	// actually prevented (not just discouraged in the UI) — this is the real
+	// guard against getting the number flagged.
+	if in.Channel == "whatsapp" {
+		rs, err := hr.WhatsAppRateStatus(s.cfg.HRSentPath)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not check send rate: "+err.Error())
+			return
+		}
+		if rs.Blocked {
+			msg := ""
+			if rs.CapReached {
+				msg = fmt.Sprintf("Daily WhatsApp limit reached (%d/%d). Pause until tomorrow to avoid getting flagged.", rs.SentToday, rs.DailyCap)
+			} else {
+				msg = fmt.Sprintf("Slow down — wait %ds before the next WhatsApp message to avoid getting flagged.", rs.CooldownLeft)
+			}
+			writeJSON(w, http.StatusTooManyRequests, map[string]any{"ok": false, "error": msg, "rate": rs})
+			return
+		}
+	}
+
+	if _, err := hr.MarkSent(s.cfg.HRSentPath, hr.SentRecord{
+		Key:     key,
+		Channel: in.Channel,
+		Company: in.Company,
+		Name:    in.Name,
+		Role:    in.Role,
+		Email:   in.Email,
+		Phone:   in.Phone,
+		SentAt:  time.Now(),
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not record sent: "+err.Error())
+		return
+	}
+	sent, err := s.hrSentForChannel(in.Channel)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := map[string]any{"sent": sent}
+	if in.Channel == "whatsapp" {
+		if rs, err := hr.WhatsAppRateStatus(s.cfg.HRSentPath); err == nil {
+			out["rate"] = rs // fresh status so the UI starts the cooldown immediately
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handleHRRerank forces a fresh AI re-rank of all companies (both sheets).

@@ -148,12 +148,46 @@ export interface HRContact {
   rank: number; // company importance (0-100), higher = more important
 }
 
-/** One page of HR contacts. */
+/** A contact already reached out to (in the Sent section). */
+export interface HRSentRecord {
+  key: string;
+  channel: "email" | "whatsapp";
+  company: string;
+  name: string;
+  role: string;
+  email?: string;
+  phone?: string;
+  sentAt: string;
+}
+
+/** WhatsApp send-rate status (guards against getting the number flagged). */
+export interface HRRateStatus {
+  sentToday: number;
+  dailyCap: number;
+  cooldownLeft: number; // seconds until the inter-send cooldown clears
+  blocked: boolean; // true if a send is not allowed right now
+  capReached: boolean; // true if today's cap is hit
+}
+
+/** One page of HR contacts, plus the full sent list for that channel. */
 export interface HRPage {
   contacts: HRContact[];
   total: number;
   page: number;
   pageSize: number;
+  sent: HRSentRecord[];
+  rate?: HRRateStatus; // present for the WhatsApp channel
+}
+
+/** Payload to mark a contact as reached out to. */
+export interface MarkSentInput {
+  channel: "email" | "whatsapp";
+  company: string;
+  name: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+  key?: string;
 }
 
 /** Build the query string for an HR list request. */
@@ -234,6 +268,11 @@ export const api = {
   hrEmail: (opts?: { page?: number; pageSize?: number; q?: string }) =>
     request<HRPage>(`/api/hr/email?${hrQuery(opts)}`),
   hrRerank: () => request<{ ok: boolean; companies: number }>("/api/hr/rerank", { method: "POST" }),
+  hrMarkSent: (input: MarkSentInput) =>
+    request<{ sent: HRSentRecord[]; rate?: HRRateStatus }>("/api/hr/sent", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   jobs: () => request<JobsState>("/api/jobs"),
   markApplied: (id: string) =>
     request<JobsState>("/api/jobs/applied", {
@@ -248,7 +287,14 @@ export const api = {
 
 const PREFILL_KEY = "composePrefill";
 
-export function setComposePrefill(v: ComposeInput): void {
+/** A compose prefill, optionally tagged so the main page can mark the source HR
+ *  contact as "sent" after the email actually goes out. */
+export interface ComposePrefill {
+  input: ComposeInput;
+  hrSent?: MarkSentInput; // present when coming from the Email HR page
+}
+
+export function setComposePrefill(v: ComposePrefill): void {
   try {
     sessionStorage.setItem(PREFILL_KEY, JSON.stringify(v));
   } catch {
@@ -257,12 +303,12 @@ export function setComposePrefill(v: ComposeInput): void {
 }
 
 /** Reads and clears any pending compose prefill. Returns null if none. */
-export function takeComposePrefill(): ComposeInput | null {
+export function takeComposePrefill(): ComposePrefill | null {
   try {
     const raw = sessionStorage.getItem(PREFILL_KEY);
     if (!raw) return null;
     sessionStorage.removeItem(PREFILL_KEY);
-    return JSON.parse(raw) as ComposeInput;
+    return JSON.parse(raw) as ComposePrefill;
   } catch {
     return null;
   }

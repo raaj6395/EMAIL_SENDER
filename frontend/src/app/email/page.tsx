@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HRContact, api, setComposePrefill } from "@/lib/api";
 import { Button, Card } from "@/components/ui";
-import { HRPager, HRToolbar, RankBadge, useHRContacts } from "@/components/hr";
+import { HRPager, HRToolbar, RankBadge, SentSection, useHRContacts } from "@/components/hr";
 
 /** One email-contact row: details + a button that prefills the compose form. */
 function EmailRow({ contact, onCompose }: { contact: HRContact; onCompose: (c: HRContact) => void }) {
@@ -34,9 +34,8 @@ export default function EmailHRPage() {
   const router = useRouter();
   const [hrEnabled, setHrEnabled] = useState<boolean | null>(null);
   const [reranking, setReranking] = useState(false);
-  const { contacts, total, page, totalPages, q, setQ, loading, error, goto, reload } = useHRContacts(
-    api.hrEmail
-  );
+  const { contacts, sent, total, page, totalPages, q, setQ, loading, error, goto, reload } =
+    useHRContacts(api.hrEmail);
 
   const handleRerank = async () => {
     setReranking(true);
@@ -57,12 +56,23 @@ export default function EmailHRPage() {
       .catch(() => setHrEnabled(false));
   }, []);
 
-  // Stash the contact and jump to the main compose page, which reads the prefill.
+  // Stash the contact (with an HR-sent marker) and jump to the main compose page.
+  // The marker lets the sender move this contact to Sent after the email is sent.
   const handleCompose = (c: HRContact) => {
     setComposePrefill({
-      recipientEmail: c.email ?? "",
-      recipientName: c.name ?? "",
-      company: c.company ?? "",
+      input: {
+        recipientEmail: c.email ?? "",
+        recipientName: c.name ?? "",
+        company: c.company ?? "",
+      },
+      hrSent: {
+        channel: "email",
+        company: c.company,
+        name: c.name,
+        role: c.role,
+        email: c.email,
+        key: c.email,
+      },
     });
     router.push("/");
   };
@@ -121,6 +131,8 @@ export default function EmailHRPage() {
           </div>
 
           <HRPager page={page} totalPages={totalPages} loading={loading} goto={goto} />
+
+          <SentSection sent={sent} />
         </Card>
       )}
     </main>

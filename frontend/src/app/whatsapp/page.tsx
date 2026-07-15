@@ -1,13 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { HRContact, api } from "@/lib/api";
+import { ApiError, HRContact, api } from "@/lib/api";
 import { Button, Card, Textarea, Toast } from "@/components/ui";
-import { HRPager, HRToolbar, RankBadge, useHRContacts } from "@/components/hr";
+import { HRPager, HRToolbar, RankBadge, SentSection, useHRContacts } from "@/components/hr";
 
 // Default outreach message. {name} and {company} are filled per contact.
-const DEFAULT_TEMPLATE =
-  "Hi {name}, I hope you're doing well. I'm a 2026 B.Tech graduate exploring software engineering opportunities at {company}. I'd love to share my resume and learn about any suitable openings. Thank you!";
+const DEFAULT_TEMPLATE = `Hi {name},
+
+I am Ankit Raj, a 2026 graduate from NIT Allahabad. I am reaching out about Software Engineer opportunities at {company}.
+
+I interned as a Backend Engineer at Carousell and Propel, where I built and shipped production backend features across 10+ Golang microservices, optimized database queries, and contributed to service migrations including moving a Django monolith to Go gRPC microservices. My core stack is Go and Node.js, with gRPC, Protobuf, REST, PostgreSQL, MySQL, MongoDB, Redis, and Kafka, deployed with Docker and monitored with Prometheus and Grafana. I am also familiar with Kubernetes.
+
+A few highlights: cut query time by 90% on 11M+ records via composite indexing in Postgres, implemented secure auth with JWT and refresh-token rotation, and maintain a 1800+ LeetCode rating.
+
+I would appreciate the chance to talk if there is a fit. I am sharing my resume for reference.
+
+Thank you,
+Ankit Raj
+
+Email: ankitraj210922@gmail.com
+Contact: 6386830484`;
 
 function fillTemplate(tpl: string, c: HRContact): string {
   const name = c.name?.trim() || "there";
@@ -15,7 +28,17 @@ function fillTemplate(tpl: string, c: HRContact): string {
 }
 
 /** One WhatsApp contact row: details + editable message + Send (opens wa.me). */
-function WhatsAppRow({ contact, template }: { contact: HRContact; template: string }) {
+function WhatsAppRow({
+  contact,
+  template,
+  onSent,
+  blocked,
+}: {
+  contact: HRContact;
+  template: string;
+  onSent: (c: HRContact) => void;
+  blocked: boolean; // true when the send-rate limit is active
+}) {
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState(() => fillTemplate(template, contact));
 
@@ -46,12 +69,21 @@ function WhatsAppRow({ contact, template }: { contact: HRContact; template: stri
             {open ? "Hide" : "Edit"}
           </Button>
           <a
-            href={waLink || undefined}
+            href={!blocked && waLink ? waLink : undefined}
             target="_blank"
             rel="noopener noreferrer"
-            aria-disabled={!waLink}
+            aria-disabled={blocked || !waLink}
+            onClick={(e) => {
+              if (blocked || !waLink) {
+                e.preventDefault(); // rate-limited or no phone → don't open/record
+                return;
+              }
+              onSent(contact);
+            }}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition ${
-              waLink ? "bg-green-600 hover:opacity-90" : "pointer-events-none bg-green-600/40"
+              !blocked && waLink
+                ? "bg-green-600 hover:opacity-90"
+                : "pointer-events-none bg-green-600/40"
             }`}
           >
             Send on WhatsApp ↗
@@ -82,9 +114,8 @@ export default function WhatsAppPage() {
   const [hrEnabled, setHrEnabled] = useState<boolean | null>(null);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
   const [toast, setToast] = useState<string | null>(null);
-  const { contacts, total, page, totalPages, q, setQ, loading, error, goto } = useHRContacts(
-    api.hrWhatsApp
-  );
+  const { contacts, sent, rate, setRate, total, page, totalPages, q, setQ, loading, error, goto, reload } =
+    useHRContacts(api.hrWhatsApp);
 
   useEffect(() => {
     api
@@ -92,6 +123,46 @@ export default function WhatsAppPage() {
       .then((h) => setHrEnabled(h.hrEnabled))
       .catch(() => setHrEnabled(false));
   }, []);
+
+  // Tick the cooldown down locally every second so the countdown is live and the
+  // Send buttons re-enable on their own when it hits zero.
+  useEffect(() => {
+    if (!rate || rate.cooldownLeft <= 0) return;
+    const t = setInterval(() => {
+      setRate((r) =>
+        r && r.cooldownLeft > 0
+          ? { ...r, cooldownLeft: r.cooldownLeft - 1, blocked: r.capReached || r.cooldownLeft - 1 > 0 }
+          : r
+      );
+    }, 1000);
+    return () => clearInterval(t);
+  }, [rate, setRate]);
+
+  const capReached = rate?.capReached ?? false;
+  const cooldownLeft = rate?.cooldownLeft ?? 0;
+  const blocked = capReached || cooldownLeft > 0;
+
+  // Clicking "Send on WhatsApp" records the contact as sent (server enforces the
+  // rate limit), then refreshes so it moves into the Sent section.
+  const handleSent = async (c: HRContact) => {
+    try {
+      const res = await api.hrMarkSent({
+        channel: "whatsapp",
+        company: c.company,
+        name: c.name,
+        role: c.role,
+        phone: c.phone,
+        key: c.waPhone,
+      });
+      if (res.rate) setRate(res.rate); // starts the cooldown
+      setToast(`Moved ${c.name || c.company} to Sent.`);
+      reload();
+    } catch (e) {
+      // The server blocks a too-fast/over-cap send with a 429 + message.
+      setToast(e instanceof ApiError ? e.message : "Could not record the send.");
+      reload(); // refresh rate status
+    }
+  };
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
@@ -130,6 +201,36 @@ export default function WhatsAppPage() {
           </p>
 
           <div className="mt-4">
+            {/* Send-rate guard: keeps you under WhatsApp's spam radar. */}
+            {rate && (
+              <div
+                className={`mb-3 rounded-lg border px-3 py-2 text-sm ${
+                  capReached
+                    ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
+                    : cooldownLeft > 0
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                    : "border-[var(--border)] bg-[var(--background)] text-[var(--muted)]"
+                }`}
+              >
+                {capReached ? (
+                  <>
+                    <strong>Daily limit reached</strong> ({rate.sentToday}/{rate.dailyCap}). Pause
+                    until tomorrow so your number doesn’t get flagged.
+                  </>
+                ) : cooldownLeft > 0 ? (
+                  <>
+                    Cooling down — next message in <strong>{cooldownLeft}s</strong>. Sent today:{" "}
+                    {rate.sentToday}/{rate.dailyCap}.
+                  </>
+                ) : (
+                  <>
+                    Safe to send. Today: <strong>{rate.sentToday}/{rate.dailyCap}</strong> · a short
+                    pause is enforced between messages to avoid getting flagged.
+                  </>
+                )}
+              </div>
+            )}
+
             <HRToolbar
               q={q}
               setQ={setQ}
@@ -146,7 +247,13 @@ export default function WhatsAppPage() {
 
             <div className="space-y-3">
               {contacts.map((c, i) => (
-                <WhatsAppRow key={`${c.waPhone}-${i}`} contact={c} template={template} />
+                <WhatsAppRow
+                  key={`${c.waPhone}-${i}`}
+                  contact={c}
+                  template={template}
+                  onSent={handleSent}
+                  blocked={blocked}
+                />
               ))}
               {!loading && contacts.length === 0 && !error && (
                 <div className="rounded-lg border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
@@ -156,6 +263,8 @@ export default function WhatsAppPage() {
             </div>
 
             <HRPager page={page} totalPages={totalPages} loading={loading} goto={goto} />
+
+            <SentSection sent={sent} />
           </div>
         </Card>
       )}
