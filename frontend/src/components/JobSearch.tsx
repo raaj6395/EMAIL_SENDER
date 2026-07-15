@@ -1,7 +1,16 @@
 "use client";
 
-import { JobsState, StoredJob } from "@/lib/api";
+import {
+  JOB_LIMITS,
+  JOB_TIME_RANGES,
+  JobTimeRange,
+  JobsState,
+  StoredJob,
+} from "@/lib/api";
 import { Button, Card } from "./ui";
+
+const selectClass =
+  "rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 disabled:opacity-50";
 
 function formatWhen(iso: string): string {
   const d = new Date(iso);
@@ -119,6 +128,10 @@ export function JobSearch({
   loading,
   blocked = false,
   retryLabel = "",
+  limit,
+  timeRange,
+  onLimitChange,
+  onTimeRangeChange,
 }: {
   jobs: JobsState;
   onSearch: () => void;
@@ -126,6 +139,10 @@ export function JobSearch({
   loading: boolean;
   blocked?: boolean; // true when a fresh Apify run is rate-limited right now
   retryLabel?: string; // e.g. "3h 20m" until the next run is allowed
+  limit: number;
+  timeRange: JobTimeRange;
+  onLimitChange: (n: number) => void;
+  onTimeRangeChange: (t: JobTimeRange) => void;
 }) {
   // Default to empty arrays so a null/absent list from the backend can never
   // crash the render (e.g. an older backend that returns null instead of []).
@@ -136,21 +153,53 @@ export function JobSearch({
     <Card
       title="Job search — fresher software roles in India"
       action={
-        <Button
-          variant="primary"
-          onClick={() => onSearch()}
-          loading={loading}
-          disabled={blocked}
-          title={
-            blocked
-              ? `Runs at most once every 6 hours to protect Apify credits${
-                  retryLabel ? ` — try again in ~${retryLabel}` : ""
-                }`
-              : undefined
-          }
-        >
-          {loading ? "Finding…" : "Find jobs"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+            <span className="hidden sm:inline">Posted</span>
+            <select
+              className={selectClass}
+              value={timeRange}
+              onChange={(e) => onTimeRangeChange(e.target.value as JobTimeRange)}
+              disabled={loading}
+            >
+              {JOB_TIME_RANGES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+            <span className="hidden sm:inline">Show</span>
+            <select
+              className={selectClass}
+              value={limit}
+              onChange={(e) => onLimitChange(Number(e.target.value))}
+              disabled={loading}
+            >
+              {JOB_LIMITS.map((n) => (
+                <option key={n} value={n}>
+                  {n} jobs
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            variant="primary"
+            onClick={() => onSearch()}
+            loading={loading}
+            disabled={blocked}
+            title={
+              blocked
+                ? `Runs at most once every 6 hours to protect Apify credits${
+                    retryLabel ? ` — try again in ~${retryLabel}` : ""
+                  }`
+                : undefined
+            }
+          >
+            {loading ? "Finding…" : "Find jobs"}
+          </Button>
+        </div>
       }
     >
       {blocked && (

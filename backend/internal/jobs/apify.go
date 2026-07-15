@@ -62,6 +62,44 @@ var DefaultRoles = []string{
 // DefaultLocation is the location filter used when none is given.
 const DefaultLocation = "India"
 
+// Job-count and time-range bounds/defaults for a search. The actor requires
+// limit >= 10; we cap the UI at 100. timeRange accepts only the actor's enum.
+const (
+	MinLimit         = 10
+	MaxLimit         = 100
+	DefaultLimit     = 50
+	DefaultTimeRange = "24h"
+)
+
+// allowedTimeRanges are the actor-supported windows we expose (excluding "1h",
+// which is too narrow to be useful for fresher India roles).
+var allowedTimeRanges = map[string]bool{"24h": true, "7d": true, "6m": true}
+
+// normalizeLimit clamps a requested job count into [MinLimit, MaxLimit],
+// falling back to DefaultLimit when unset (0).
+func normalizeLimit(limit int) int {
+	if limit == 0 {
+		return DefaultLimit
+	}
+	if limit < MinLimit {
+		return MinLimit
+	}
+	if limit > MaxLimit {
+		return MaxLimit
+	}
+	return limit
+}
+
+// normalizeTimeRange returns a supported time-range value, defaulting when the
+// input is empty or unrecognized.
+func normalizeTimeRange(tr string) string {
+	tr = strings.TrimSpace(tr)
+	if allowedTimeRanges[tr] {
+		return tr
+	}
+	return DefaultTimeRange
+}
+
 // blockedCompanies are organizations whose listings are dropped entirely — some
 // companies post the same role many times per fetch and spam the Open list.
 // Matching is case-insensitive and by substring, so "scoutit" also catches
@@ -87,10 +125,11 @@ func isBlockedCompany(org string) bool {
 const apifyBase = "https://api.apify.com/v2/acts"
 
 // Search runs the configured Apify actor filtered to the given roles + location
-// and fresher (0-2 yr) experience, and returns normalized Jobs. A successful
-// run that yields no jobs returns an empty slice with a nil error; only
-// transport/auth/parse problems return an error.
-func Search(ctx context.Context, cfg SearchConfig, roles []string, location string) ([]Job, error) {
+// and fresher (0-2 yr) experience, returning up to `limit` jobs posted within
+// `timeRange`. Both are normalized/validated. A successful run that yields no
+// jobs returns an empty slice with a nil error; only transport/auth/parse
+// problems return an error.
+func Search(ctx context.Context, cfg SearchConfig, roles []string, location string, limit int, timeRange string) ([]Job, error) {
 	if cfg.Token == "" {
 		return nil, fmt.Errorf("Apify token not configured: set APIFY_TOKEN in backend/.env")
 	}
@@ -100,19 +139,21 @@ func Search(ctx context.Context, cfg SearchConfig, roles []string, location stri
 	if strings.TrimSpace(location) == "" {
 		location = DefaultLocation
 	}
+	limit = normalizeLimit(limit)
+	timeRange = normalizeTimeRange(timeRange)
 
 	actor := firstNonEmpty(cfg.ActorID, "vIGxjRrHqDTPuE6M4")
 	// Apify accepts the actor id with "~" instead of "/" in the path; internal
 	// actor IDs (e.g. "vIGxjRrHqDTPuE6M4") have no slash and pass through as-is.
 	actorPath := strings.ReplaceAll(actor, "/", "~")
 
-	// Server-side filters (verified against the live actor): timeRange "24h" gets
-	// only jobs posted in the last day, titleSearch matches the roles,
+	// Server-side filters (verified against the live actor): timeRange scopes to
+	// jobs posted within the chosen window, titleSearch matches the roles,
 	// locationSearch scopes to the country, and aiExperienceLevelFilter "0-2" is
-	// the fresher bucket. limit is the per-call ceiling and must be >= 10.
+	// the fresher bucket. limit is the per-call ceiling (>= 10).
 	reqBody := map[string]any{
-		"timeRange":               "24h",
-		"limit":                   50,
+		"timeRange":               timeRange,
+		"limit":                   limit,
 		"descriptionType":         "text",
 		"titleSearch":             roles,
 		"locationSearch":          []string{location},

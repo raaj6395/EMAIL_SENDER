@@ -23,11 +23,12 @@ var ErrInvalidURL = errors.New("that doesn't look like a LinkedIn profile URL (e
 // Config holds the Apify settings. Field names are configurable because
 // different actors return the email/name/company under different keys.
 type Config struct {
-	Token        string
-	ActorID      string // e.g. "iron-crawler/linkedin-email-finder-profile"
-	EmailField   string // dataset key holding the email (default "email")
-	NameField    string // dataset key holding the full name (default "full_name")
-	CompanyField string // dataset key holding the company (default "current_company")
+	Token           string
+	ActorID         string // primary actor, e.g. "snipercoder/linkedin-email-finder"
+	FallbackActorID string // tried when the primary finds no email (empty → no fallback)
+	EmailField      string // dataset key holding the email (default "email")
+	NameField       string // dataset key holding the full name (default "full_name")
+	CompanyField    string // dataset key holding the company (default "current_company")
 }
 
 // Result is the normalized outcome of a lookup.
@@ -46,10 +47,12 @@ var linkedInRe = regexp.MustCompile(`(?i)^https?://([a-z]+\.)?linkedin\.com/(in|
 
 const apifyBase = "https://api.apify.com/v2/acts"
 
-// FindEmail runs the configured Apify actor for one LinkedIn URL and returns a
-// normalized Result. A successful run that yields no email returns
-// Result{Found:false} with a nil error; only transport/auth/parse problems
-// return an error.
+// FindEmail runs the configured Apify actor(s) for one LinkedIn URL and returns
+// a normalized Result. It tries the primary actor first; if that succeeds but
+// finds no email, it falls back to FallbackActorID (when set) — different actors
+// have different coverage, so one often finds an email the other misses. A run
+// that yields no email from all actors returns Result{Found:false} with a nil
+// error; only transport/auth/parse problems return an error.
 func FindEmail(ctx context.Context, cfg Config, linkedInURL string) (Result, error) {
 	if cfg.Token == "" {
 		return Result{}, fmt.Errorf("Apify token not configured: set APIFY_TOKEN in backend/.env")
@@ -59,7 +62,29 @@ func FindEmail(ctx context.Context, cfg Config, linkedInURL string) (Result, err
 		return Result{}, ErrInvalidURL
 	}
 
-	actor := firstNonEmpty(cfg.ActorID, "anchor/linkedin-to-email")
+	primary := firstNonEmpty(cfg.ActorID, "snipercoder/linkedin-email-finder")
+	res, err := findEmailOne(ctx, cfg, primary, url)
+	if err != nil {
+		return res, err
+	}
+	if res.Found {
+		return res, nil
+	}
+
+	// Primary succeeded but found nothing — try the fallback actor if configured
+	// and distinct from the primary. A fallback failure/no-result must NOT mask
+	// the primary's clean "not found": swallow its error and keep res.
+	fb := strings.TrimSpace(cfg.FallbackActorID)
+	if fb != "" && fb != primary {
+		if fbRes, fbErr := findEmailOne(ctx, cfg, fb, url); fbErr == nil && fbRes.Found {
+			return fbRes, nil
+		}
+	}
+	return res, nil
+}
+
+// findEmailOne runs a single Apify actor for one (already-validated) LinkedIn URL.
+func findEmailOne(ctx context.Context, cfg Config, actor, url string) (Result, error) {
 	// Apify accepts the actor id with "~" instead of "/" in the path; internal
 	// actor IDs (e.g. "v2BduQ96tuQA3R41k") have no slash and pass through as-is.
 	actorPath := strings.ReplaceAll(actor, "/", "~")
@@ -151,18 +176,21 @@ func FindEmail(ctx context.Context, cfg Config, linkedInURL string) (Result, err
 
 	email := strings.TrimSpace(firstNonEmpty(
 		getString(item, emailKey),
+		getString(item, "email"),    // vulnv
 		getString(item, "04_Email"), // snipercoder
 	))
 	res := Result{
 		Email: email,
 		Name: strings.TrimSpace(firstNonEmpty(
 			getString(item, nameKey),
+			getString(item, "name"),    // vulnv
 			getString(item, "01_Name"), // snipercoder
 		)),
 		// Company: try the configured/default key, then common fallbacks so the
 		// same code works across actor variants.
 		Company: strings.TrimSpace(firstNonEmpty(
 			getString(item, companyKey),
+			getString(item, "company"), // vulnv
 			getString(item, "current_company_name"),
 			getString(item, "current_company"),
 			getString(item, "company_name"),

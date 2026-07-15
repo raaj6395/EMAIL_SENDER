@@ -138,8 +138,10 @@ func MergeOpen(openPath, appliedPath string, incoming []StoredJob) (open []Store
 }
 
 // MarkApplied moves the job with the given ID from the open list to the applied
-// list, stamping AppliedAt. It is a no-op (no error) if the ID isn't in the open
-// list. Returns the updated open and applied lists.
+// list, stamping AppliedAt. Because the actor returns the same posting under
+// several IDs, it removes ALL open entries sharing the target's content key (so
+// its duplicates don't linger and re-appear in Open). It is a no-op (no error)
+// if the ID isn't in the open list. Returns the updated open and applied lists.
 func MarkApplied(openPath, appliedPath, jobID string) (open, applied []StoredJob, err error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
@@ -153,25 +155,43 @@ func MarkApplied(openPath, appliedPath, jobID string) (open, applied []StoredJob
 		return nil, nil, err
 	}
 
-	var moved *StoredJob
-	remaining := make([]StoredJob, 0, len(open))
+	// Find the clicked job by ID to learn its content key.
+	var target *StoredJob
 	for i := range open {
-		if open[i].ID == jobID && moved == nil {
+		if open[i].ID == jobID {
 			j := open[i]
-			moved = &j
-			continue
+			target = &j
+			break
 		}
-		remaining = append(remaining, open[i])
 	}
-
 	// Not in open — nothing to do (already applied or unknown id).
-	if moved == nil {
+	if target == nil {
 		return open, applied, nil
 	}
+	key := target.DedupKey()
 
-	now := time.Now()
-	moved.AppliedAt = &now
-	applied = append([]StoredJob{*moved}, applied...)
+	// Drop every open entry that is the same posting (same content key).
+	remaining := make([]StoredJob, 0, len(open))
+	for _, j := range open {
+		if j.DedupKey() == key {
+			continue
+		}
+		remaining = append(remaining, j)
+	}
+
+	// Add to applied only if not already there (by content key).
+	alreadyApplied := false
+	for _, j := range applied {
+		if j.DedupKey() == key {
+			alreadyApplied = true
+			break
+		}
+	}
+	if !alreadyApplied {
+		now := time.Now()
+		target.AppliedAt = &now
+		applied = append([]StoredJob{*target}, applied...)
+	}
 
 	if err := saveJobsLocked(openPath, remaining); err != nil {
 		return nil, nil, err

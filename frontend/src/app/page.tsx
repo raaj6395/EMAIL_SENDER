@@ -10,6 +10,7 @@ import {
   Profile,
   api,
   emptyProfile,
+  takeComposePrefill,
 } from "@/lib/api";
 import { SetupBanner } from "@/components/SetupBanner";
 import { ProfileEditor } from "@/components/ProfileEditor";
@@ -85,6 +86,18 @@ export default function Home() {
       .getProfile()
       .then(setProfile)
       .catch(() => {});
+
+    // If we arrived here from the Email HR page, prefill the compose form.
+    const prefill = takeComposePrefill();
+    if (prefill) {
+      setCompose((c) => ({ ...c, ...prefill }));
+      setToast({
+        kind: "info",
+        message: `Composing to ${prefill.recipientName || prefill.recipientEmail}${
+          prefill.company ? ` at ${prefill.company}` : ""
+        }. Preview → Send when ready.`,
+      });
+    }
   }, [refreshHealth, refreshHistory]);
 
   const handleParse = async () => {

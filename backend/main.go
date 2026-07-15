@@ -5,12 +5,14 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"emailsender/internal/config"
 	"emailsender/internal/email"
+	"emailsender/internal/hr"
 	"emailsender/internal/jobs"
 	"emailsender/internal/lookup"
 	"emailsender/internal/resume"
@@ -49,6 +51,9 @@ func main() {
 	mux.HandleFunc("POST /api/jobs/search", s.handleJobSearch)
 	mux.HandleFunc("GET /api/jobs", s.handleJobsList)
 	mux.HandleFunc("POST /api/jobs/applied", s.handleMarkApplied)
+	mux.HandleFunc("GET /api/hr/whatsapp", s.handleHRWhatsApp)
+	mux.HandleFunc("GET /api/hr/email", s.handleHREmail)
+	mux.HandleFunc("POST /api/hr/rerank", s.handleHRRerank)
 
 	handler := s.withCORS(mux)
 
@@ -61,6 +66,7 @@ func main() {
 	log.Printf("  digest to:    %v", cfg.HasDigest())
 	log.Printf("  apify lookup: %v (actor %s)", cfg.HasLookup(), cfg.ApifyActorID)
 	log.Printf("  jobs search:  %v (actor %s)", cfg.HasJobs(), cfg.JobsActorID)
+	log.Printf("  hr outreach:  %v", cfg.HasHR())
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
@@ -95,6 +101,7 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"digestTo":       s.cfg.DigestTo,
 		"lookupEnabled":  s.cfg.HasLookup(),
 		"jobsEnabled":    s.cfg.HasJobs(),
+		"hrEnabled":      s.cfg.HasHR(),
 	})
 }
 
@@ -289,7 +296,9 @@ func (s *server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Roles []string `json:"roles"`
+		Roles     []string `json:"roles"`
+		Limit     int      `json:"limit"`
+		TimeRange string   `json:"timeRange"`
 	}
 	// Body is optional; ignore decode errors so an empty body uses defaults.
 	_ = json.NewDecoder(r.Body).Decode(&in)
@@ -314,7 +323,7 @@ func (s *server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	found, err := jobs.Search(r.Context(), s.jobsConfig(), in.Roles, jobs.DefaultLocation)
+	found, err := jobs.Search(r.Context(), s.jobsConfig(), in.Roles, jobs.DefaultLocation, in.Limit, in.TimeRange)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
@@ -424,15 +433,138 @@ func (s *server) handleMarkApplied(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "a job id is required")
 		return
 	}
-	open, applied, err := jobs.MarkApplied(s.cfg.JobsOpenPath, s.cfg.JobsAppliedPath, in.ID)
+	_, applied, err := jobs.MarkApplied(s.cfg.JobsOpenPath, s.cfg.JobsAppliedPath, in.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update jobs: "+err.Error())
+		return
+	}
+	// Return the FILTERED open list (blocked companies, duplicates, and applied
+	// jobs removed) — the same view every other endpoint returns, so the UI never
+	// shows raw leftovers after an apply.
+	open, err := jobs.LoadOpen(s.cfg.JobsOpenPath, s.cfg.JobsAppliedPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read jobs: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"open":    open,
 		"applied": applied,
 	})
+}
+
+// handleHRWhatsApp serves the WhatsApp contact sheet, company-ranked + paginated.
+func (s *server) handleHRWhatsApp(w http.ResponseWriter, r *http.Request) {
+	s.serveHRContacts(w, r, false)
+}
+
+// handleHREmail serves the email contact sheet, company-ranked + paginated.
+func (s *server) handleHREmail(w http.ResponseWriter, r *http.Request) {
+	s.serveHRContacts(w, r, true)
+}
+
+// serveHRContacts loads the requested sheet, ranks companies (cached), sorts,
+// filters by an optional query, and returns one page of results.
+func (s *server) serveHRContacts(w http.ResponseWriter, r *http.Request, isEmail bool) {
+	if !s.cfg.HasHR() {
+		writeError(w, http.StatusBadRequest, "HR data not found: place your HR spreadsheet at backend/data/HR DATA (1).xlsx")
+		return
+	}
+
+	var (
+		contacts []hr.Contact
+		err      error
+	)
+	if isEmail {
+		contacts, err = hr.LoadEmail(s.cfg.HRDataPath)
+	} else {
+		contacts, err = hr.LoadWhatsApp(s.cfg.HRDataPath)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read HR data: "+err.Error())
+		return
+	}
+
+	// Rank companies (cached; only new companies hit the AI), then sort.
+	ranks, err := hr.EnsureRanks(r.Context(), s.cfg.HRRanksPath, s.cfg.OpenAIKey, s.cfg.OpenAIModel, hr.UniqueCompanies(contacts), false)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not rank companies: "+err.Error())
+		return
+	}
+	hr.ApplyRanksAndSort(contacts, ranks)
+
+	// Optional search across company/name/role/email.
+	if q := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("q"))); q != "" {
+		filtered := contacts[:0]
+		for _, c := range contacts {
+			hay := strings.ToLower(c.Company + " " + c.Name + " " + c.Role + " " + c.Email)
+			if strings.Contains(hay, q) {
+				filtered = append(filtered, c)
+			}
+		}
+		contacts = filtered
+	}
+
+	page, pageSize := paginationParams(r)
+	total := len(contacts)
+	start := (page - 1) * pageSize
+	if start > total {
+		start = total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	pageItems := contacts[start:end]
+	if pageItems == nil {
+		pageItems = []hr.Contact{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"contacts": pageItems,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
+// handleHRRerank forces a fresh AI re-rank of all companies (both sheets).
+func (s *server) handleHRRerank(w http.ResponseWriter, r *http.Request) {
+	if !s.cfg.HasHR() {
+		writeError(w, http.StatusBadRequest, "HR data not found")
+		return
+	}
+	wa, err := hr.LoadWhatsApp(s.cfg.HRDataPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	em, err := hr.LoadEmail(s.cfg.HRDataPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	companies := hr.UniqueCompanies(append(wa, em...))
+	if _, err := hr.EnsureRanks(r.Context(), s.cfg.HRRanksPath, s.cfg.OpenAIKey, s.cfg.OpenAIModel, companies, true); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not re-rank: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "companies": len(companies)})
+}
+
+// paginationParams reads ?page= and ?pageSize= with sane defaults/limits.
+func paginationParams(r *http.Request) (page, pageSize int) {
+	page = 1
+	pageSize = 50
+	if v, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && v > 0 {
+		page = v
+	}
+	if v, err := strconv.Atoi(r.URL.Query().Get("pageSize")); err == nil && v > 0 {
+		pageSize = v
+		if pageSize > 200 {
+			pageSize = 200
+		}
+	}
+	return page, pageSize
 }
 
 // ---- helpers ----
@@ -455,11 +587,12 @@ func (s *server) aiConfig() email.AIConfig {
 
 func (s *server) lookupConfig() lookup.Config {
 	return lookup.Config{
-		Token:        s.cfg.ApifyToken,
-		ActorID:      s.cfg.ApifyActorID,
-		EmailField:   s.cfg.ApifyEmailField,
-		NameField:    s.cfg.ApifyNameField,
-		CompanyField: s.cfg.ApifyCompanyField,
+		Token:           s.cfg.ApifyToken,
+		ActorID:         s.cfg.ApifyActorID,
+		FallbackActorID: s.cfg.ApifyFallbackActorID,
+		EmailField:      s.cfg.ApifyEmailField,
+		NameField:       s.cfg.ApifyNameField,
+		CompanyField:    s.cfg.ApifyCompanyField,
 	}
 }
 

@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/", label: "✉️ Email Sender" },
   { href: "/jobs", label: "💼 Job Search" },
+  { href: "/email", label: "📧 Email HR" },
+  { href: "/whatsapp", label: "💬 WhatsApp" },
 ];
 
 export function NavBar() {

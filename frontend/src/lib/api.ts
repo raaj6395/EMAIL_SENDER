@@ -25,6 +25,7 @@ export interface Health {
   digestTo: string;
   lookupEnabled: boolean;
   jobsEnabled: boolean;
+  hrEnabled: boolean;
 }
 
 export interface ComposeInput {
@@ -123,6 +124,47 @@ export interface SearchResult {
   lastRunAt?: string; // ISO time of the most recent Apify run (when blocked)
 }
 
+/** Time-range values the job-search actor supports (excluding the too-narrow "1h"). */
+export type JobTimeRange = "24h" | "7d" | "6m";
+
+/** Dropdown options for the time-range selector. */
+export const JOB_TIME_RANGES: { value: JobTimeRange; label: string }[] = [
+  { value: "24h", label: "Last 24 hours" },
+  { value: "7d", label: "Last week" },
+  { value: "6m", label: "Last 6 months" },
+];
+
+/** Dropdown options for the job-count selector (10…100 by tens). */
+export const JOB_LIMITS: number[] = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+
+/** An HR/recruiter contact from the uploaded spreadsheet. */
+export interface HRContact {
+  company: string;
+  name: string;
+  role: string;
+  email?: string;
+  phone?: string; // display form, e.g. "+91 63954 86191"
+  waPhone?: string; // digits-only for wa.me, e.g. "916395486191"
+  rank: number; // company importance (0-100), higher = more important
+}
+
+/** One page of HR contacts. */
+export interface HRPage {
+  contacts: HRContact[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Build the query string for an HR list request. */
+function hrQuery(opts?: { page?: number; pageSize?: number; q?: string }): string {
+  const p = new URLSearchParams();
+  if (opts?.page) p.set("page", String(opts.page));
+  if (opts?.pageSize) p.set("pageSize", String(opts.pageSize));
+  if (opts?.q?.trim()) p.set("q", opts.q.trim());
+  return p.toString();
+}
+
 export const emptyProfile = (): Profile => ({
   name: "",
   email: "",
@@ -176,11 +218,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ linkedinUrl }),
     }),
-  searchJobs: (roles?: string[]) =>
+  searchJobs: (opts?: { limit?: number; timeRange?: JobTimeRange; roles?: string[] }) =>
     request<SearchResult>("/api/jobs/search", {
       method: "POST",
-      body: JSON.stringify({ roles }),
+      body: JSON.stringify({
+        roles: opts?.roles,
+        limit: opts?.limit,
+        timeRange: opts?.timeRange,
+      }),
     }),
+  hrWhatsApp: (opts?: { page?: number; pageSize?: number; q?: string }) =>
+    request<HRPage>(
+      `/api/hr/whatsapp?${hrQuery(opts)}`
+    ),
+  hrEmail: (opts?: { page?: number; pageSize?: number; q?: string }) =>
+    request<HRPage>(`/api/hr/email?${hrQuery(opts)}`),
+  hrRerank: () => request<{ ok: boolean; companies: number }>("/api/hr/rerank", { method: "POST" }),
   jobs: () => request<JobsState>("/api/jobs"),
   markApplied: (id: string) =>
     request<JobsState>("/api/jobs/applied", {
@@ -188,3 +241,29 @@ export const api = {
       body: JSON.stringify({ id }),
     }),
 };
+
+// ---- Compose prefill handoff (Email HR page → main compose page) ----
+// sessionStorage carries a chosen contact across the client-side navigation to
+// "/", where the compose form is populated from it (then it's cleared).
+
+const PREFILL_KEY = "composePrefill";
+
+export function setComposePrefill(v: ComposeInput): void {
+  try {
+    sessionStorage.setItem(PREFILL_KEY, JSON.stringify(v));
+  } catch {
+    /* storage unavailable — ignore */
+  }
+}
+
+/** Reads and clears any pending compose prefill. Returns null if none. */
+export function takeComposePrefill(): ComposeInput | null {
+  try {
+    const raw = sessionStorage.getItem(PREFILL_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(PREFILL_KEY);
+    return JSON.parse(raw) as ComposeInput;
+  } catch {
+    return null;
+  }
+}

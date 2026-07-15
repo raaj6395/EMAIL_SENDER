@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, Health, JobsState, api } from "@/lib/api";
+import { ApiError, Health, JobTimeRange, JobsState, api } from "@/lib/api";
 import { JobSearch } from "@/components/JobSearch";
 import { Toast } from "@/components/ui";
 
@@ -21,6 +21,8 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobsState>({ open: [], applied: [] });
   const [searching, setSearching] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+  const [limit, setLimit] = useState(50);
+  const [timeRange, setTimeRange] = useState<JobTimeRange>("24h");
 
   const errMsg = (e: unknown) =>
     e instanceof ApiError ? e.message : "Something went wrong. Please try again.";
@@ -59,7 +61,7 @@ export default function JobsPage() {
     setSearching(true);
     setToast(null);
     try {
-      const res = await api.searchJobs();
+      const res = await api.searchJobs({ limit, timeRange });
       setJobs((j) => ({
         ...j,
         open: res.open ?? [],
@@ -135,6 +137,10 @@ export default function JobsPage() {
           loading={searching}
           blocked={jobs.blocked ?? false}
           retryLabel={jobs.retryAfter ? formatDuration(jobs.retryAfter) : ""}
+          limit={limit}
+          timeRange={timeRange}
+          onLimitChange={setLimit}
+          onTimeRangeChange={setTimeRange}
         />
       )}
     </main>
