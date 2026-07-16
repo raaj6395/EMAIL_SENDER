@@ -1,38 +1,201 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   Design tokens — a modern-SaaS system (Linear/Vercel-adjacent) with a blue
+   accent. Neutrals carry a faint cool bias so they read chosen, not default.
+   Styled through tokens only; light is the base, dark overridden by both the
+   media query and the [data-theme] attribute (viewer toggle wins either way).
+
+   NOTE: the legacy names (--background/--foreground/--card) are kept as aliases
+   so existing components keep working while pages migrate to the new tokens.
+   ========================================================================== */
+
 :root {
-  --background: #f6f7f9;
-  --foreground: #171717;
-  --card: #ffffff;
-  --border: #e4e7eb;
-  --muted: #6b7280;
-  --accent: #0b57d0;
+  /* Surfaces & lines (cool-biased neutrals) */
+  --surface: #f7f8fa;        /* app background */
+  --surface-sunken: #eef1f5; /* wells, track backgrounds */
+  --elevated: #ffffff;       /* cards */
+  --elevated-hover: #f9fafb;
+  --border: #e3e7ee;
+  --border-strong: #cfd5df;
+
+  /* Text */
+  --fg: #10141b;             /* primary text */
+  --muted: #5b6472;          /* secondary text */
+  --subtle: #8a93a3;         /* tertiary / placeholders */
+
+  /* Accent (blue) */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-active: #1e40af;
+  --accent-fg: #ffffff;      /* text on accent */
+  --accent-soft: #e8effd;    /* soft accent background */
+  --accent-soft-fg: #1d4ed8; /* text on soft accent */
+
+  /* Semantic (separate from accent) */
+  --success: #16a34a;
+  --success-soft: #e7f6ec;
+  --success-fg: #15803d;
+  --warning: #d97706;
+  --warning-soft: #fdf0dd;
+  --warning-fg: #b45309;
+  --danger: #dc2626;
+  --danger-soft: #fdeaea;
+  --danger-fg: #b91c1c;
+  --info: #0891b2;
+  --info-soft: #e2f5f9;
+  --info-fg: #0e7490;
+
+  /* Radius scale */
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
+  --radius-xl: 18px;
+  --radius-full: 9999px;
+
+  /* Elevation (tuned for light) */
+  --shadow-sm: 0 1px 2px rgba(16, 20, 27, 0.06), 0 1px 1px rgba(16, 20, 27, 0.04);
+  --shadow-md: 0 4px 12px rgba(16, 20, 27, 0.08), 0 1px 3px rgba(16, 20, 27, 0.05);
+  --shadow-lg: 0 12px 32px rgba(16, 20, 27, 0.12), 0 4px 10px rgba(16, 20, 27, 0.06);
+
+  /* Focus ring */
+  --ring: color-mix(in srgb, var(--accent) 45%, transparent);
+
+  /* Legacy aliases (do not remove until all pages migrate) */
+  --background: var(--surface);
+  --foreground: var(--fg);
+  --card: var(--elevated);
+
+  color-scheme: light;
 }
 
+/* Dark — deep cool slate, not pure black; accent lightened for contrast. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #0d1017;
+    --surface-sunken: #0a0d13;
+    --elevated: #151a22;
+    --elevated-hover: #1b212b;
+    --border: #262d38;
+    --border-strong: #37404d;
+
+    --fg: #e9edf3;
+    --muted: #9aa4b2;
+    --subtle: #6b7585;
+
+    --accent: #4c8dff;
+    --accent-hover: #6ba1ff;
+    --accent-active: #3b7cf0;
+    --accent-fg: #0a0d13;
+    --accent-soft: #16233a;
+    --accent-soft-fg: #9cc2ff;
+
+    --success: #34d17f;
+    --success-soft: #12251b;
+    --success-fg: #6ee7a8;
+    --warning: #f0a92e;
+    --warning-soft: #2a2011;
+    --warning-fg: #f4c56b;
+    --danger: #f2635a;
+    --danger-soft: #2c1616;
+    --danger-fg: #f7938c;
+    --info: #38bcd8;
+    --info-soft: #0f2830;
+    --info-fg: #7cd7e8;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55), 0 6px 14px rgba(0, 0, 0, 0.4);
+
+    --ring: color-mix(in srgb, var(--accent) 55%, transparent);
+
+    color-scheme: dark;
+  }
+}
+
+/* Explicit theme toggle overrides the media query in BOTH directions. */
+:root[data-theme="light"] {
+  --surface: #f7f8fa; --surface-sunken: #eef1f5; --elevated: #ffffff; --elevated-hover: #f9fafb;
+  --border: #e3e7ee; --border-strong: #cfd5df;
+  --fg: #10141b; --muted: #5b6472; --subtle: #8a93a3;
+  --accent: #2563eb; --accent-hover: #1d4ed8; --accent-active: #1e40af; --accent-fg: #ffffff;
+  --accent-soft: #e8effd; --accent-soft-fg: #1d4ed8;
+  --success: #16a34a; --success-soft: #e7f6ec; --success-fg: #15803d;
+  --warning: #d97706; --warning-soft: #fdf0dd; --warning-fg: #b45309;
+  --danger: #dc2626; --danger-soft: #fdeaea; --danger-fg: #b91c1c;
+  --info: #0891b2; --info-soft: #e2f5f9; --info-fg: #0e7490;
+  --shadow-sm: 0 1px 2px rgba(16,20,27,0.06), 0 1px 1px rgba(16,20,27,0.04);
+  --shadow-md: 0 4px 12px rgba(16,20,27,0.08), 0 1px 3px rgba(16,20,27,0.05);
+  --shadow-lg: 0 12px 32px rgba(16,20,27,0.12), 0 4px 10px rgba(16,20,27,0.06);
+  --ring: color-mix(in srgb, var(--accent) 45%, transparent);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --surface: #0d1017; --surface-sunken: #0a0d13; --elevated: #151a22; --elevated-hover: #1b212b;
+  --border: #262d38; --border-strong: #37404d;
+  --fg: #e9edf3; --muted: #9aa4b2; --subtle: #6b7585;
+  --accent: #4c8dff; --accent-hover: #6ba1ff; --accent-active: #3b7cf0; --accent-fg: #0a0d13;
+  --accent-soft: #16233a; --accent-soft-fg: #9cc2ff;
+  --success: #34d17f; --success-soft: #12251b; --success-fg: #6ee7a8;
+  --warning: #f0a92e; --warning-soft: #2a2011; --warning-fg: #f4c56b;
+  --danger: #f2635a; --danger-soft: #2c1616; --danger-fg: #f7938c;
+  --info: #38bcd8; --info-soft: #0f2830; --info-fg: #7cd7e8;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 6px 18px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.35);
+  --shadow-lg: 0 16px 40px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.4);
+  --ring: color-mix(in srgb, var(--accent) 55%, transparent);
+  color-scheme: dark;
+}
+
+/* Expose tokens to Tailwind's arbitrary-value utilities and map fonts.
+   Legacy color names kept so existing bg-[var(--card)] etc. keep resolving. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
   --color-border: var(--border);
+  --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-background: var(--surface);
+  --color-foreground: var(--fg);
+  --color-card: var(--elevated);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b0d10;
-    --foreground: #e8eaed;
-    --card: #16191d;
-    --border: #2a2e34;
-    --muted: #9aa0a6;
-    --accent: #669df6;
-  }
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--surface);
+  color: var(--fg);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Consistent, visible keyboard focus everywhere. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Refined scrollbars (webkit) for the data-dense lists. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+  border: 2px solid var(--surface);
+}
+::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
