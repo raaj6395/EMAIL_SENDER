@@ -49,6 +49,11 @@ type Config struct {
 	// AI-track equivalents (a second resume + profile for AI/ML-role emails).
 	AIResumePath  string // ai_resume.pdf
 	AIProfilePath string // profile_ai.json
+
+	// Inbox reply assistant (reads Gmail over IMAP with the same App Password).
+	IMAPHost    string
+	IMAPPort    int
+	RepliesPath string // triaged replies store
 }
 
 // Load reads configuration from a .env file (if present) and the environment.
@@ -97,6 +102,10 @@ func Load() (*Config, error) {
 		HistoryPath:      filepath.Join(absData, "history.json"),
 		AIResumePath:     filepath.Join(absData, "ai_resume.pdf"),
 		AIProfilePath:    filepath.Join(absData, "profile_ai.json"),
+
+		IMAPHost:    getenv("IMAP_HOST", "imap.gmail.com"),
+		IMAPPort:    getenvInt("IMAP_PORT", 993),
+		RepliesPath: filepath.Join(absData, "replies.json"),
 	}
 
 	// Ensure the data directory exists so profile/history writes don't fail.
@@ -137,6 +146,12 @@ func (c *Config) HasJobs() bool {
 func (c *Config) HasHR() bool {
 	info, err := os.Stat(c.HRDataPath)
 	return err == nil && !info.IsDir() && info.Size() > 0
+}
+
+// HasInbox reports whether inbox reading is available — it reuses the Gmail
+// App Password (IMAP), so it's on whenever Gmail credentials are configured.
+func (c *Config) HasInbox() bool {
+	return c.HasCredentials()
 }
 
 // fileExists reports whether path is a non-empty regular file.

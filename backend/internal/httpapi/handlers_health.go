@@ -17,5 +17,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"lookupEnabled":  s.cfg.HasLookup(),
 		"jobsEnabled":    s.cfg.HasJobs(),
 		"hrEnabled":      s.cfg.HasHR(),
+		"inboxEnabled":   s.cfg.HasInbox(),
 	})
 }
