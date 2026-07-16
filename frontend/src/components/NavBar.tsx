@@ -8,6 +8,7 @@ type NavLink = { href: string; label: string; icon: React.ReactNode };
 
 const LINKS: NavLink[] = [
   { href: "/", label: "Email Sender", icon: <IconMail /> },
+  { href: "/replies", label: "Replies", icon: <IconInbox /> },
   { href: "/jobs", label: "Job Search", icon: <IconBriefcase /> },
   { href: "/email", label: "Email HR", icon: <IconContacts /> },
   { href: "/whatsapp", label: "WhatsApp", icon: <IconChat /> },
@@ -152,6 +153,7 @@ function IconMail() { return svg(<><rect x="2" y="4" width="20" height="16" rx="
 function IconBriefcase() { return svg(<><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></>); }
 function IconContacts() { return svg(<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>); }
 function IconChat() { return svg(<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />); }
+function IconInbox() { return svg(<><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></>); }
 function IconBolt() { return svg(<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />); }
 function IconMenu() { return svg(<><line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /></>); }
 function IconClose() { return svg(<><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>); }

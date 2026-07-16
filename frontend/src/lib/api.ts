@@ -31,6 +31,22 @@ export interface Health {
   lookupEnabled: boolean;
   jobsEnabled: boolean;
   hrEnabled: boolean;
+  inboxEnabled: boolean;
+}
+
+/** A triaged inbox reply to your outreach. */
+export interface InboxReply {
+  messageId: string;
+  fromEmail: string;
+  fromName: string;
+  subject: string;
+  body: string;
+  receivedAt: string;
+  category: "positive" | "question" | "follow_up_later" | "not_open" | "other";
+  draft: string;
+  reason: string;
+  status: "needs_reply" | "scheduled" | "no_action" | "replied" | "dismissed";
+  followUpAt?: string;
 }
 
 export interface ComposeInput {
@@ -311,6 +327,22 @@ export const api = {
     request<{ sent: HRSentRecord[]; rate?: HRRateStatus }>("/api/hr/sent", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  repliesCheck: (limit: number) =>
+    request<{ replies: InboxReply[]; checked: number; matched: number }>("/api/replies/check", {
+      method: "POST",
+      body: JSON.stringify({ limit }),
+    }),
+  replies: () => request<{ replies: InboxReply[] }>("/api/replies"),
+  replySend: (messageId: string, body: string) =>
+    request<{ ok: boolean; replies: InboxReply[] }>("/api/replies/send", {
+      method: "POST",
+      body: JSON.stringify({ messageId, body }),
+    }),
+  replyDismiss: (messageId: string) =>
+    request<{ ok: boolean; replies: InboxReply[] }>("/api/replies/dismiss", {
+      method: "POST",
+      body: JSON.stringify({ messageId }),
     }),
   jobs: () => request<JobsState>("/api/jobs"),
   markApplied: (id: string) =>
