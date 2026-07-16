@@ -79,24 +79,28 @@ func SentKeys(path, channel string) (map[string]bool, error) {
 // outreach from a personal number (see the app docs / commit message):
 //   • a randomized 30-60s gap between sends — we enforce a 30s hard floor and
 //     let the UI display a longer suggested wait;
-//   • a conservative daily cap for a new/unwarmed number.
+//   • a conservative cap for a new/unwarmed number, counted over a rolling
+//     6-hour window (not a calendar day) so the limit is spread across the day.
 const (
-	WhatsAppCooldown = 30 * time.Second
-	WhatsAppDailyCap = 15
+	WhatsAppCooldown   = 30 * time.Second
+	WhatsAppWindowCap  = 15
+	WhatsAppWindow     = 6 * time.Hour
 )
 
 // RateStatus describes whether a new send is currently allowed for a channel.
 type RateStatus struct {
-	SentToday      int   `json:"sentToday"`
-	DailyCap       int   `json:"dailyCap"`
-	CooldownLeft   int   `json:"cooldownLeft"`   // seconds until the cooldown clears
-	Blocked        bool  `json:"blocked"`        // true if a send is not allowed right now
-	CapReached     bool  `json:"capReached"`     // true if the daily cap is hit
+	SentInWindow int  `json:"sentInWindow"` // sends within the rolling window
+	WindowCap    int  `json:"windowCap"`    // max sends allowed per window
+	WindowHours  int  `json:"windowHours"`  // the window length, in hours
+	CooldownLeft int  `json:"cooldownLeft"` // seconds until the inter-send cooldown clears
+	ResetIn      int  `json:"resetIn"`      // seconds until the cap frees up (oldest send ages out)
+	Blocked      bool `json:"blocked"`      // true if a send is not allowed right now
+	CapReached   bool `json:"capReached"`   // true if the window cap is hit
 }
 
 // WhatsAppRateStatus computes the current WhatsApp send-rate status from the
-// recorded sent timestamps: how many were sent today (local time) and how long
-// until the inter-send cooldown clears.
+// recorded sent timestamps: how many were sent in the last WhatsAppWindow, how
+// long until the inter-send cooldown clears, and how long until the cap frees up.
 func WhatsAppRateStatus(path string) (RateStatus, error) {
 	sentMu.Lock()
 	defer sentMu.Unlock()
@@ -106,17 +110,17 @@ func WhatsAppRateStatus(path string) (RateStatus, error) {
 	}
 
 	now := time.Now()
-	y, m, d := now.Date()
-	dayStart := time.Date(y, m, d, 0, 0, 0, 0, now.Location())
+	windowStart := now.Add(-WhatsAppWindow)
 
-	sentToday := 0
+	// Collect WhatsApp send times inside the rolling window + the most recent send.
+	var inWindow []time.Time
 	var last time.Time
 	for _, r := range recs {
 		if r.Channel != "whatsapp" {
 			continue
 		}
-		if r.SentAt.After(dayStart) {
-			sentToday++
+		if r.SentAt.After(windowStart) {
+			inWindow = append(inWindow, r.SentAt)
 		}
 		if r.SentAt.After(last) {
 			last = r.SentAt
@@ -129,12 +133,30 @@ func WhatsAppRateStatus(path string) (RateStatus, error) {
 			cooldownLeft = int(left.Seconds()) + 1
 		}
 	}
-	capReached := sentToday >= WhatsAppDailyCap
+
+	capReached := len(inWindow) >= WhatsAppWindowCap
+
+	// resetIn: when the cap is hit, one slot frees up once the OLDEST in-window
+	// send ages past the window. Find the oldest of the in-window sends.
+	resetIn := 0
+	if capReached && len(inWindow) > 0 {
+		oldest := inWindow[0]
+		for _, t := range inWindow[1:] {
+			if t.Before(oldest) {
+				oldest = t
+			}
+		}
+		if left := oldest.Add(WhatsAppWindow).Sub(now); left > 0 {
+			resetIn = int(left.Seconds()) + 1
+		}
+	}
 
 	return RateStatus{
-		SentToday:    sentToday,
-		DailyCap:     WhatsAppDailyCap,
+		SentInWindow: len(inWindow),
+		WindowCap:    WhatsAppWindowCap,
+		WindowHours:  int(WhatsAppWindow.Hours()),
 		CooldownLeft: cooldownLeft,
+		ResetIn:      resetIn,
 		CapReached:   capReached,
 		Blocked:      capReached || cooldownLeft > 0,
 	}, nil

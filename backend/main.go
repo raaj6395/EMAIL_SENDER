@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"emailsender/internal/batch"
 	"emailsender/internal/config"
 	"emailsender/internal/email"
 	"emailsender/internal/hr"
@@ -20,7 +22,8 @@ import (
 )
 
 type server struct {
-	cfg *config.Config
+	cfg   *config.Config
+	batch *batch.Manager
 }
 
 func main() {
@@ -28,7 +31,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("config error: %v", err)
 	}
-	s := &server{cfg: cfg}
+	s := &server{cfg: cfg, batch: batch.NewManager()}
 
 	// Seed a pre-filled profile on first run so the UI isn't blank.
 	if existing, _ := resume.LoadProfile(cfg.ProfilePath); existing == nil {
@@ -46,6 +49,9 @@ func main() {
 	mux.HandleFunc("PUT /api/profile", s.handleSaveProfile)
 	mux.HandleFunc("POST /api/preview", s.handlePreview)
 	mux.HandleFunc("POST /api/send", s.handleSend)
+	mux.HandleFunc("POST /api/batch", s.handleBatchStart)
+	mux.HandleFunc("GET /api/batch", s.handleBatchStatus)
+	mux.HandleFunc("POST /api/batch/cancel", s.handleBatchCancel)
 	mux.HandleFunc("GET /api/history", s.handleHistory)
 	mux.HandleFunc("POST /api/digest", s.handleSendDigest)
 	mux.HandleFunc("POST /api/lookup", s.handleLookup)
@@ -95,6 +101,8 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":             true,
 		"hasResume":      s.cfg.HasResume(),
+		"hasResumeSD":    s.cfg.HasResumeFor("sd"),
+		"hasResumeAI":    s.cfg.HasResumeFor("ai"),
 		"hasCredentials": s.cfg.HasCredentials(),
 		"gmailUser":      maskUser(s.cfg.GmailUser),
 		"aiEnabled":      s.cfg.HasAI(),
@@ -108,20 +116,25 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleParseResume(w http.ResponseWriter, r *http.Request) {
-	if !s.cfg.HasResume() {
-		writeError(w, http.StatusBadRequest, "resume not found: place your resume at backend/data/resume.pdf")
+	track := normalizeTrack(r.URL.Query().Get("track"))
+	if !s.cfg.HasResumeFor(track) {
+		name := "resume.pdf"
+		if track == "ai" {
+			name = "ai_resume.pdf"
+		}
+		writeError(w, http.StatusBadRequest, "resume not found: place your resume at backend/data/"+name)
 		return
 	}
-	text, err := resume.ExtractText(s.cfg.ResumePath)
+	text, err := resume.ExtractText(s.cfg.ResumePathFor(track))
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "could not read the PDF: "+err.Error())
 		return
 	}
 	profile := resume.ParseProfile(text)
 
-	// Merge any previously-saved edits so we don't clobber the user's manual
-	// corrections with a fresh parse. Saved non-empty fields win.
-	if existing, _ := resume.LoadProfile(s.cfg.ProfilePath); existing != nil {
+	// Merge any previously-saved edits (for this track) so a fresh parse doesn't
+	// clobber the user's manual corrections. Saved non-empty fields win.
+	if existing, _ := resume.LoadProfile(s.cfg.ProfilePathFor(track)); existing != nil {
 		mergeProfile(profile, existing)
 	}
 
@@ -129,7 +142,8 @@ func (s *server) handleParseResume(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleGetProfile(w http.ResponseWriter, r *http.Request) {
-	p, err := resume.LoadProfile(s.cfg.ProfilePath)
+	track := normalizeTrack(r.URL.Query().Get("track"))
+	p, err := s.loadProfileForTrack(track)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read profile: "+err.Error())
 		return
@@ -141,6 +155,7 @@ func (s *server) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleSaveProfile(w http.ResponseWriter, r *http.Request) {
+	track := normalizeTrack(r.URL.Query().Get("track"))
 	var p resume.Profile
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -149,7 +164,7 @@ func (s *server) handleSaveProfile(w http.ResponseWriter, r *http.Request) {
 	if p.Skills == nil {
 		p.Skills = []string{}
 	}
-	if err := resume.SaveProfile(s.cfg.ProfilePath, &p); err != nil {
+	if err := resume.SaveProfile(s.cfg.ProfilePathFor(track), &p); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save profile: "+err.Error())
 		return
 	}
@@ -170,7 +185,7 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.cfg.ValidateForSend(); err != nil {
+	if err := s.cfg.ValidateForSend(in.Track); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -178,7 +193,8 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 	attachmentName := resumeAttachmentName(p.Name)
 	result := email.Compose(r.Context(), s.aiConfig(), p, in, attachmentName)
 
-	sendErr := email.Send(s.smtpConfig(), p.Name, in.RecipientEmail, result.Rendered, s.cfg.ResumePath)
+	// Attach the resume for the selected track (SD → resume.pdf, AI → ai_resume.pdf).
+	sendErr := email.Send(s.smtpConfig(), p.Name, in.RecipientEmail, result.Rendered, s.cfg.ResumePathFor(in.Track))
 
 	entry := email.HistoryEntry{
 		RecipientEmail: in.RecipientEmail,
@@ -205,6 +221,92 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 		"sentTo":  in.RecipientEmail,
 		"source":  result.Source,
 	})
+}
+
+// batchMaxGapSec is the upper bound (seconds) of the random gap between bulk
+// sends — a random 0..N pause keeps Gmail from seeing a rapid burst.
+const batchMaxGapSec = 20
+
+// sendOneBatch is the per-item worker for a bulk batch: it composes an
+// AI-tailored email for the item's company (on the given track), sends it with
+// that track's resume, and records the result in history — mirroring a single
+// send. Returned errors mark the item failed.
+func (s *server) sendOneBatch(ctx context.Context, track string, it batch.Item) error {
+	p, err := s.loadProfileForTrack(track)
+	if err != nil || p == nil {
+		return fmt.Errorf("no %s profile saved", strings.ToUpper(track))
+	}
+
+	in := email.ComposeInput{
+		RecipientEmail: it.Email,
+		RecipientName:  it.Name,
+		Company:        it.Company,
+		Track:          track,
+	}
+	result := email.Compose(ctx, s.aiConfig(), p, in, resumeAttachmentName(p.Name))
+	sendErr := email.Send(s.smtpConfig(), p.Name, it.Email, result.Rendered, s.cfg.ResumePathFor(track))
+
+	entry := email.HistoryEntry{
+		RecipientEmail: it.Email,
+		Company:        it.Company,
+		Subject:        result.Subject,
+		Status:         "sent",
+		SentAt:         time.Now(),
+	}
+	if sendErr != nil {
+		entry.Status = "failed"
+		entry.Error = sendErr.Error()
+	}
+	if histErr := email.AppendHistory(s.cfg.HistoryPath, entry); histErr != nil {
+		log.Printf("warning: could not write history: %v", histErr)
+	}
+	return sendErr
+}
+
+// handleBatchStart parses pasted rows and starts a paced bulk send. Only one
+// batch runs at a time.
+func (s *server) handleBatchStart(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Track string `json:"track"`
+		Rows  string `json:"rows"` // pasted text, one recipient per line
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	track := normalizeTrack(in.Track)
+
+	if err := s.cfg.ValidateForSend(track); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if s.batch.Running() {
+		writeError(w, http.StatusConflict, "a bulk send is already in progress — wait for it to finish or cancel it")
+		return
+	}
+
+	items := batch.ParseRows(in.Rows)
+	if len(items) == 0 {
+		writeError(w, http.StatusBadRequest, "no valid recipients found — paste one email per line (optionally 'email, Company, Name')")
+		return
+	}
+
+	if !s.batch.Start(items, track, batchMaxGapSec, s.sendOneBatch) {
+		writeError(w, http.StatusConflict, "a bulk send is already in progress")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.batch.Get())
+}
+
+// handleBatchStatus returns the current/last batch progress for polling.
+func (s *server) handleBatchStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.batch.Get())
+}
+
+// handleBatchCancel stops the remaining queue.
+func (s *server) handleBatchCancel(w http.ResponseWriter, r *http.Request) {
+	s.batch.Cancel()
+	writeJSON(w, http.StatusOK, s.batch.Get())
 }
 
 func (s *server) handleSendDigest(w http.ResponseWriter, r *http.Request) {
@@ -630,7 +732,8 @@ func (s *server) handleHRMarkSent(w http.ResponseWriter, r *http.Request) {
 		if rs.Blocked {
 			msg := ""
 			if rs.CapReached {
-				msg = fmt.Sprintf("Daily WhatsApp limit reached (%d/%d). Pause until tomorrow to avoid getting flagged.", rs.SentToday, rs.DailyCap)
+				mins := (rs.ResetIn + 59) / 60
+				msg = fmt.Sprintf("WhatsApp limit reached (%d in %dh). Pause ~%d min so you don't get flagged.", rs.WindowCap, rs.WindowHours, mins)
 			} else {
 				msg = fmt.Sprintf("Slow down — wait %ds before the next WhatsApp message to avoid getting flagged.", rs.CooldownLeft)
 			}
@@ -761,8 +864,9 @@ func (s *server) decodeComposeAndProfile(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "company name is required")
 		return in, nil, false
 	}
+	in.Track = normalizeTrack(in.Track)
 
-	p, err := resume.LoadProfile(s.cfg.ProfilePath)
+	p, err := s.loadProfileForTrack(in.Track)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read profile: "+err.Error())
 		return in, nil, false
@@ -772,6 +876,30 @@ func (s *server) decodeComposeAndProfile(w http.ResponseWriter, r *http.Request)
 		return in, nil, false
 	}
 	return in, p, true
+}
+
+// normalizeTrack coerces a track value to "sd" (default) or "ai".
+func normalizeTrack(t string) string {
+	if strings.ToLower(strings.TrimSpace(t)) == "ai" {
+		return "ai"
+	}
+	return "sd"
+}
+
+// loadProfileForTrack loads a track's saved profile. For the AI track, if no
+// profile has been saved yet, it seeds one from the SD profile so the user
+// doesn't start blank (they can then edit / re-parse from the AI resume).
+func (s *server) loadProfileForTrack(track string) (*resume.Profile, error) {
+	p, err := resume.LoadProfile(s.cfg.ProfilePathFor(track))
+	if err != nil {
+		return nil, err
+	}
+	if p == nil && track == "ai" {
+		if base, _ := resume.LoadProfile(s.cfg.ProfilePath); base != nil {
+			return base, nil
+		}
+	}
+	return p, nil
 }
 
 // mergeProfile fills dst's empty fields from src (saved edits take precedence

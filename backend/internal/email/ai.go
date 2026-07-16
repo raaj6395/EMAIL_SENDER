@@ -121,7 +121,7 @@ func buildPrompts(p *resume.Profile, in ComposeInput) (system, user string) {
 		"1) subject: a short, specific subject line (no clickbait, no emojis, under ~9 words).",
 		"2) companyLine: a short paragraph of 1-2 sentences (max ~45 words) expressing the candidate's passion and why they look forward to contributing to THIS specific company, in a warm, sincere, first-person voice.",
 		"Rules for companyLine: start with 'I'; mention the company by name; keep it framed around the ROLE the candidate is applying for; do NOT name specific programming languages, frameworks, or tools (keep the contribution tech-agnostic — e.g. say 'my skills' or 'my experience', not 'Go and Python'); do not invent facts, products, metrics, or claims about the company or candidate; no clichés ('I am writing to', 'I am thrilled/excited', 'learning in a practical setting'); plain everyday words; it must read naturally as the 3rd paragraph of the email, similar in shape to this default it replaces: " + fmt.Sprintf(templateCompanyPara, in.Company),
-		"Match this candidate's natural tone: " + styleSample,
+		"Match this candidate's natural tone: " + styleSampleFor(in.Track),
 		`Return STRICT JSON: {"subject": string, "companyLine": string}. No other text.`,
 	}, "\n")
 
@@ -140,10 +140,25 @@ func buildPrompts(p *resume.Profile, in ComposeInput) (system, user string) {
 	return system, b.String()
 }
 
-// styleSample anchors the AI to the candidate's own natural, sincere voice.
+// styleSample anchors the AI to the candidate's own natural, sincere voice
+// (software-engineering track).
 const styleSample = "I am a 2026 B.Tech graduate who interned as a software engineer. " +
 	"I enjoy building reliable software that solves real problems for users at scale, " +
 	"and I want to keep learning and build things that make a real impact."
+
+// styleSampleAI is the equivalent voice for AI/ML-role emails, so the tailored
+// company line reads AI-flavored rather than generic-software.
+const styleSampleAI = "I am a 2026 B.Tech graduate who worked on AI/ML systems as an intern. " +
+	"I enjoy building and applying machine learning to solve real problems for users, " +
+	"and I want to keep learning and ship AI-driven products that make a real impact."
+
+// styleSampleFor picks the voice for the requested track.
+func styleSampleFor(track string) string {
+	if track == "ai" {
+		return styleSampleAI
+	}
+	return styleSample
+}
 
 // sanitizeLine strips wrapping quotes/whitespace and collapses newlines so a
 // single-sentence company line stays a single paragraph.

@@ -14,9 +14,14 @@ export interface Profile {
   portfolio: string;
 }
 
+/** Which resume/profile track an email uses. */
+export type Track = "sd" | "ai";
+
 export interface Health {
   ok: boolean;
   hasResume: boolean;
+  hasResumeSD: boolean;
+  hasResumeAI: boolean;
   hasCredentials: boolean;
   gmailUser: string;
   aiEnabled: boolean;
@@ -33,6 +38,30 @@ export interface ComposeInput {
   recipientName?: string;
   company: string;
   role?: string;
+  track?: Track; // "sd" (default) or "ai" — selects resume/profile/AI flavor
+}
+
+/** One recipient in a bulk send. */
+export interface BatchItem {
+  email: string;
+  company: string;
+  name: string;
+  status: "queued" | "sending" | "sent" | "failed" | "skipped";
+  error?: string;
+}
+
+/** Live status of the bulk-send queue. */
+export interface BatchStatus {
+  active: boolean;
+  track: Track;
+  total: number;
+  sent: number;
+  failed: number;
+  remaining: number;
+  nextInSec: number;
+  items: BatchItem[];
+  startedAt?: string;
+  done: boolean;
 }
 
 export interface Rendered {
@@ -162,11 +191,13 @@ export interface HRSentRecord {
 
 /** WhatsApp send-rate status (guards against getting the number flagged). */
 export interface HRRateStatus {
-  sentToday: number;
-  dailyCap: number;
+  sentInWindow: number; // sends within the rolling window
+  windowCap: number; // max sends allowed per window
+  windowHours: number; // window length in hours
   cooldownLeft: number; // seconds until the inter-send cooldown clears
+  resetIn: number; // seconds until the cap frees up (oldest send ages out)
   blocked: boolean; // true if a send is not allowed right now
-  capReached: boolean; // true if today's cap is hit
+  capReached: boolean; // true if the window cap is hit
 }
 
 /** One page of HR contacts, plus the full sent list for that channel. */
@@ -237,14 +268,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<Health>("/api/health"),
-  parseResume: () => request<Profile>("/api/parse-resume", { method: "POST" }),
-  getProfile: () => request<Profile>("/api/profile"),
-  saveProfile: (p: Profile) =>
-    request<Profile>("/api/profile", { method: "PUT", body: JSON.stringify(p) }),
+  parseResume: (track: Track = "sd") =>
+    request<Profile>(`/api/parse-resume?track=${track}`, { method: "POST" }),
+  getProfile: (track: Track = "sd") => request<Profile>(`/api/profile?track=${track}`),
+  saveProfile: (p: Profile, track: Track = "sd") =>
+    request<Profile>(`/api/profile?track=${track}`, { method: "PUT", body: JSON.stringify(p) }),
   preview: (input: ComposeInput) =>
     request<ComposeResult>("/api/preview", { method: "POST", body: JSON.stringify(input) }),
   send: (input: ComposeInput) =>
     request<SendResult>("/api/send", { method: "POST", body: JSON.stringify(input) }),
+  batchStart: (rows: string, track: Track) =>
+    request<BatchStatus>("/api/batch", {
+      method: "POST",
+      body: JSON.stringify({ rows, track }),
+    }),
+  batchStatus: () => request<BatchStatus>("/api/batch"),
+  batchCancel: () => request<BatchStatus>("/api/batch/cancel", { method: "POST" }),
   history: () => request<HistoryEntry[]>("/api/history"),
   sendDigest: () => request<DigestResult>("/api/digest", { method: "POST" }),
   lookup: (linkedinUrl: string) =>

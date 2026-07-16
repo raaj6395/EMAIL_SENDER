@@ -1,6 +1,6 @@
 "use client";
 
-import { ComposeInput } from "@/lib/api";
+import { ComposeInput, Track } from "@/lib/api";
 import { guessCompany, guessFirstName } from "@/lib/guess";
 import { Button, Card, Field, Input } from "./ui";
 
@@ -10,12 +10,20 @@ export function ComposeForm({
   onPreview,
   loading,
   step = 1,
+  track,
+  onTrackChange,
+  hasResumeSD = false,
+  hasResumeAI = false,
 }: {
   input: ComposeInput;
   onChange: (i: ComposeInput) => void;
   onPreview: () => void;
   loading: boolean;
   step?: number;
+  track: Track;
+  onTrackChange: (t: Track) => void;
+  hasResumeSD?: boolean;
+  hasResumeAI?: boolean;
 }) {
   const emailValid = /\S+@\S+\.\S+/.test(input.recipientEmail.trim());
   const companyValid = input.company.trim().length > 0;
@@ -36,9 +44,44 @@ export function ComposeForm({
     onChange(next);
   };
 
+  const resumeReady = track === "ai" ? hasResumeAI : hasResumeSD;
+
   return (
     <Card title="Compose" step={step}>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <Field
+        label="Profile"
+        hint={
+          track === "ai"
+            ? "Uses your AI resume + AI profile, tailored for AI/ML roles."
+            : "Uses your SDE resume + SDE profile, tailored for software-engineering roles."
+        }
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex overflow-hidden rounded-lg border border-[var(--border)]">
+            {(["sd", "ai"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onTrackChange(t)}
+                className={`px-4 py-1.5 text-sm font-medium transition ${
+                  track === t
+                    ? "bg-[var(--accent)] text-white"
+                    : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {t === "sd" ? "SDE" : "AI"}
+              </button>
+            ))}
+          </div>
+          {!resumeReady && (
+            <span className="text-xs text-amber-600 dark:text-amber-400">
+              ⚠ No {track === "ai" ? "ai_resume.pdf" : "resume.pdf"} found for this profile.
+            </span>
+          )}
+        </div>
+      </Field>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field label="Recipient email" hint="Company & name are auto-suggested — edit if needed">
           <Input
             type="email"

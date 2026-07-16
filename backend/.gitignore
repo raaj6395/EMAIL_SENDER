@@ -2,8 +2,11 @@
 .env
 
 # User data (resume + generated state) — never commit
+data/*.pdf
 data/resume.pdf
+data/ai_resume.pdf
 data/profile.json
+data/profile_ai.json
 data/history.json
 data/jobs_open.json
 data/jobs_applied.json

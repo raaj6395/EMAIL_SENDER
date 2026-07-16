@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   ComposeInput,
@@ -9,6 +9,7 @@ import {
   HistoryEntry,
   MarkSentInput,
   Profile,
+  Track,
   api,
   emptyProfile,
   takeComposePrefill,
@@ -17,6 +18,7 @@ import { SetupBanner } from "@/components/SetupBanner";
 import { ProfileEditor } from "@/components/ProfileEditor";
 import { LinkedInLookup, LookupFound } from "@/components/LinkedInLookup";
 import { ComposeForm } from "@/components/ComposeForm";
+import { BulkSend } from "@/components/BulkSend";
 import { EmailPreview } from "@/components/EmailPreview";
 import { SendHistory } from "@/components/SendHistory";
 import { StatusPanel } from "@/components/StatusPanel";
@@ -42,6 +44,7 @@ function Pill({ ok, label }: { ok: boolean; label: string }) {
 
 export default function Home() {
   const [health, setHealth] = useState<Health | null>(null);
+  const [track, setTrack] = useState<Track>("sd");
   const [profile, setProfile] = useState<Profile>(emptyProfile());
   const [compose, setCompose] = useState<ComposeInput>({ recipientEmail: "", recipientName: "", company: "", role: "" });
   const [rendered, setRendered] = useState<ComposeResult | null>(null);
@@ -106,13 +109,29 @@ export default function Home() {
     }
   }, [refreshHealth, refreshHistory]);
 
+  // Reload the profile for the active track whenever it changes (each track has
+  // its own saved profile). Skip the very first run — the mount effect already
+  // loaded the SD profile.
+  const firstTrackRun = useRef(true);
+  useEffect(() => {
+    if (firstTrackRun.current) {
+      firstTrackRun.current = false;
+      return;
+    }
+    setRendered(null);
+    api
+      .getProfile(track)
+      .then(setProfile)
+      .catch(() => {});
+  }, [track]);
+
   const handleParse = async () => {
     setParsing(true);
     setToast(null);
     try {
-      const p = await api.parseResume();
+      const p = await api.parseResume(track);
       setProfile(p);
-      setToast({ kind: "info", message: "Parsed your resume. Review the fields, then save." });
+      setToast({ kind: "info", message: `Parsed your ${track.toUpperCase()} resume. Review the fields, then save.` });
     } catch (e) {
       setToast({ kind: "error", message: errMsg(e) });
     } finally {
@@ -124,7 +143,7 @@ export default function Home() {
     setSaving(true);
     setSaved(false);
     try {
-      const p = await api.saveProfile(profile);
+      const p = await api.saveProfile(profile, track);
       setProfile(p);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -140,8 +159,8 @@ export default function Home() {
     setToast(null);
     try {
       // Ensure the latest profile edits are persisted before rendering.
-      await api.saveProfile(profile);
-      const r = await api.preview(compose);
+      await api.saveProfile(profile, track);
+      const r = await api.preview({ ...compose, track });
       setRendered(r);
     } catch (e) {
       setToast({ kind: "error", message: errMsg(e) });
@@ -154,7 +173,7 @@ export default function Home() {
     setSending(true);
     setToast(null);
     try {
-      const res = await api.send(compose);
+      const res = await api.send({ ...compose, track });
       const how = res.source === "ai-tweaked" ? "AI-tailored" : "template";
       setToast({ kind: "success", message: `Sent ${how} email to ${res.sentTo} ✓` });
       setRendered(null);
@@ -217,9 +236,16 @@ export default function Home() {
             Type an email and company — send a tailored resume email via your Gmail.
           </p>
         </div>
-        {/* Quick status pills */}
+        {/* Quick status pills — resume reflects the active track */}
         <div className="flex flex-wrap gap-2">
-          <Pill ok={!!health?.hasResume} label={health?.hasResume ? "Resume ready" : "No resume"} />
+          <Pill
+            ok={track === "ai" ? !!health?.hasResumeAI : !!health?.hasResumeSD}
+            label={
+              (track === "ai" ? health?.hasResumeAI : health?.hasResumeSD)
+                ? `${track === "ai" ? "AI" : "SDE"} resume ready`
+                : `No ${track === "ai" ? "AI" : "SDE"} resume`
+            }
+          />
           <Pill ok={!!health?.hasCredentials} label={health?.hasCredentials ? "Gmail connected" : "Gmail not set"} />
         </div>
       </header>
@@ -254,7 +280,12 @@ export default function Home() {
             onPreview={handlePreview}
             loading={previewing}
             step={health?.lookupEnabled ? 2 : 1}
+            track={track}
+            onTrackChange={setTrack}
+            hasResumeSD={!!health?.hasResumeSD}
+            hasResumeAI={!!health?.hasResumeAI}
           />
+          <BulkSend track={track} />
           {rendered ? (
             <EmailPreview
               rendered={rendered}

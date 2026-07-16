@@ -21,7 +21,8 @@ type ComposeInput struct {
 	RecipientEmail string `json:"recipientEmail"`
 	RecipientName  string `json:"recipientName"` // optional; used in the greeting "Hi {name},"
 	Company        string `json:"company"`
-	Role           string `json:"role"` // optional; overrides profile.TargetRole for this email
+	Role           string `json:"role"`  // optional; overrides profile.TargetRole for this email
+	Track          string `json:"track"` // "sd" (default) or "ai" — selects resume/profile/AI flavor
 }
 
 // greeting returns "Hi {name}," when a recipient name is given, else "Hi,".

@@ -214,18 +214,24 @@ export default function WhatsAppPage() {
               >
                 {capReached ? (
                   <>
-                    <strong>Daily limit reached</strong> ({rate.sentToday}/{rate.dailyCap}). Pause
-                    until tomorrow so your number doesn’t get flagged.
+                    <strong>
+                      Limit reached ({rate.windowCap} in {rate.windowHours}h)
+                    </strong>
+                    . Pause ~{Math.ceil(rate.resetIn / 60)} min so your number doesn’t get flagged.
                   </>
                 ) : cooldownLeft > 0 ? (
                   <>
-                    Cooling down — next message in <strong>{cooldownLeft}s</strong>. Sent today:{" "}
-                    {rate.sentToday}/{rate.dailyCap}.
+                    Cooling down — next message in <strong>{cooldownLeft}s</strong>. Sent:{" "}
+                    {rate.sentInWindow}/{rate.windowCap} in the last {rate.windowHours}h.
                   </>
                 ) : (
                   <>
-                    Safe to send. Today: <strong>{rate.sentToday}/{rate.dailyCap}</strong> · a short
-                    pause is enforced between messages to avoid getting flagged.
+                    Safe to send.{" "}
+                    <strong>
+                      {rate.sentInWindow}/{rate.windowCap}
+                    </strong>{" "}
+                    in the last {rate.windowHours}h · a short pause is enforced between messages to
+                    avoid getting flagged.
                   </>
                 )}
               </div>

@@ -12,7 +12,7 @@ type Profile struct {
 	Name       string   `json:"name"`
 	Email      string   `json:"email"`      // the user's own contact email (for signature)
 	Phone      string   `json:"phone"`      // optional, for signature
-	TargetRole string   `json:"targetRole"` // e.g. "Backend Engineer"
+	TargetRole string   `json:"targetRole"` // e.g. "Software Engineer"
 	Skills     []string `json:"skills"`
 	Pitch      string   `json:"pitch"`     // one/two-line value proposition
 	LinkedIn   string   `json:"linkedin"`  // full URL
@@ -27,7 +27,7 @@ func DefaultProfile() *Profile {
 		Name:       "Ankit Raj",
 		Email:      "ankitraj224020@gmail.com",
 		Phone:      "9680905523",
-		TargetRole: "Backend Engineer",
+		TargetRole: "Software Engineer",
 		Skills: []string{
 			"Go", "Python", "C++", "JavaScript", "SQL", "gRPC", "Protobuf", "FastAPI",
 			"Django", "Express.js", "Node.js", "PostgreSQL", "MySQL", "MongoDB", "Redis",

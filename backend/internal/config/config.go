@@ -42,9 +42,13 @@ type Config struct {
 	HRSentPath      string // contacts already reached out to
 
 	DataDir     string // directory holding resume.pdf, profile.json, history.json
-	ResumePath  string
-	ProfilePath string
+	ResumePath  string // SD-track resume (resume.pdf)
+	ProfilePath string // SD-track profile (profile.json)
 	HistoryPath string
+
+	// AI-track equivalents (a second resume + profile for AI/ML-role emails).
+	AIResumePath  string // ai_resume.pdf
+	AIProfilePath string // profile_ai.json
 }
 
 // Load reads configuration from a .env file (if present) and the environment.
@@ -91,6 +95,8 @@ func Load() (*Config, error) {
 		ResumePath:       filepath.Join(absData, "resume.pdf"),
 		ProfilePath:      filepath.Join(absData, "profile.json"),
 		HistoryPath:      filepath.Join(absData, "history.json"),
+		AIResumePath:     filepath.Join(absData, "ai_resume.pdf"),
+		AIProfilePath:    filepath.Join(absData, "profile_ai.json"),
 	}
 
 	// Ensure the data directory exists so profile/history writes don't fail.
@@ -133,20 +139,51 @@ func (c *Config) HasHR() bool {
 	return err == nil && !info.IsDir() && info.Size() > 0
 }
 
-// HasResume reports whether the resume PDF exists on disk.
-func (c *Config) HasResume() bool {
-	info, err := os.Stat(c.ResumePath)
+// fileExists reports whether path is a non-empty regular file.
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
 	return err == nil && !info.IsDir() && info.Size() > 0
 }
 
+// ResumePathFor returns the resume PDF path for a track ("ai" → ai_resume.pdf,
+// anything else → the SD resume.pdf).
+func (c *Config) ResumePathFor(track string) string {
+	if track == "ai" {
+		return c.AIResumePath
+	}
+	return c.ResumePath
+}
+
+// ProfilePathFor returns the profile JSON path for a track.
+func (c *Config) ProfilePathFor(track string) string {
+	if track == "ai" {
+		return c.AIProfilePath
+	}
+	return c.ProfilePath
+}
+
+// HasResume reports whether the SD resume PDF exists on disk.
+func (c *Config) HasResume() bool {
+	return fileExists(c.ResumePath)
+}
+
+// HasResumeFor reports whether the resume PDF for a track exists on disk.
+func (c *Config) HasResumeFor(track string) bool {
+	return fileExists(c.ResumePathFor(track))
+}
+
 // ValidateForSend returns an error describing anything missing that would
-// prevent an email from being sent.
-func (c *Config) ValidateForSend() error {
+// prevent an email from being sent on the given track.
+func (c *Config) ValidateForSend(track string) error {
 	if !c.HasCredentials() {
 		return errors.New("Gmail credentials missing: set GMAIL_USER and GMAIL_APP_PASSWORD in backend/.env")
 	}
-	if !c.HasResume() {
-		return errors.New("resume not found: place your resume at backend/data/resume.pdf")
+	if !c.HasResumeFor(track) {
+		name := "resume.pdf"
+		if track == "ai" {
+			name = "ai_resume.pdf"
+		}
+		return errors.New("resume not found: place your resume at backend/data/" + name)
 	}
 	return nil
 }
