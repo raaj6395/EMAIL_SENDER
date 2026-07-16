@@ -7,8 +7,8 @@ function Row({ ok, label, detail }: { ok: boolean; label: string; detail?: strin
     <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
       <span className="flex items-center gap-2">
         <span
-          className={`inline-block h-2 w-2 shrink-0 rounded-full ${
-            ok ? "bg-green-500" : "bg-red-500"
+          className={`inline-block h-2 w-2 shrink-0 rounded-[var(--radius-full)] ${
+            ok ? "bg-[var(--success)]" : "bg-[var(--danger)]"
           }`}
         />
         {label}
@@ -30,7 +30,7 @@ export function StatusPanel({
   const failed = history.length - sent;
 
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-sm">
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
         Status
       </h2>
@@ -70,12 +70,12 @@ function Stat({
 }) {
   const color =
     tone === "green"
-      ? "text-green-600 dark:text-green-400"
+      ? "text-[var(--success-fg)]"
       : tone === "red"
-        ? "text-red-500"
-        : "text-[var(--foreground)]";
+        ? "text-[var(--danger-fg)]"
+        : "text-[var(--fg)]";
   return (
-    <div className="rounded-lg bg-[var(--background)] py-2">
+    <div className="rounded-[var(--radius-md)] bg-[var(--surface)] py-2">
       <div className={`text-lg font-bold ${color}`}>{value}</div>
       <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">{label}</div>
     </div>

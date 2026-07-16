@@ -57,7 +57,7 @@ export function ComposeForm({
         }
       >
         <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex overflow-hidden rounded-lg border border-[var(--border)]">
+          <div className="inline-flex overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)]">
             {(["sd", "ai"] as const).map((t) => (
               <button
                 key={t}
@@ -66,7 +66,7 @@ export function ComposeForm({
                 className={`px-4 py-1.5 text-sm font-medium transition ${
                   track === t
                     ? "bg-[var(--accent)] text-white"
-                    : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
+                    : "bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--fg)]"
                 }`}
               >
                 {t === "sd" ? "SDE" : "AI"}
@@ -74,7 +74,7 @@ export function ComposeForm({
             ))}
           </div>
           {!resumeReady && (
-            <span className="text-xs text-amber-600 dark:text-amber-400">
+            <span className="text-xs text-[var(--warning-fg)]">
               ⚠ No {track === "ai" ? "ai_resume.pdf" : "resume.pdf"} found for this profile.
             </span>
           )}

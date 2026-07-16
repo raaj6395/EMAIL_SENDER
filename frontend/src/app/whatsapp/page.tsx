@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ApiError, HRContact, api } from "@/lib/api";
-import { Button, Card, Textarea, Toast } from "@/components/ui";
+import { Button, Card, SectionHeader, Textarea, Toast } from "@/components/ui";
 import { HRPager, HRToolbar, RankBadge, SentSection, useHRContacts } from "@/components/hr";
 
 // Default outreach message. {name} and {company} are filled per contact.
@@ -53,7 +53,7 @@ function WhatsAppRow({
     : "";
 
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -80,10 +80,10 @@ function WhatsAppRow({
               }
               onSent(contact);
             }}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition ${
+            className={`inline-flex items-center gap-1.5 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium text-white transition ${
               !blocked && waLink
-                ? "bg-green-600 hover:opacity-90"
-                : "pointer-events-none bg-green-600/40"
+                ? "bg-[var(--success)] hover:opacity-90"
+                : "pointer-events-none bg-[var(--success)]/40"
             }`}
           >
             Send on WhatsApp ↗
@@ -166,14 +166,10 @@ export default function WhatsAppPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6 border-b border-[var(--border)] pb-5">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">WhatsApp outreach</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          HR contacts with phone numbers, most important companies first. Click{" "}
-          <span className="font-medium">Send on WhatsApp</span> to open WhatsApp with your message
-          ready — including the person’s name and company.
-        </p>
-      </header>
+      <SectionHeader
+        title="WhatsApp Outreach"
+        subtitle="HR contacts with phone numbers, most important companies first. Send on WhatsApp opens a chat with your message pre-filled — name and company included."
+      />
 
       {toast && (
         <div className="mb-5">
@@ -182,7 +178,7 @@ export default function WhatsAppPage() {
       )}
 
       {hrEnabled === false ? (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-3 text-sm text-[var(--warning-fg)]">
           No HR data found. Place your spreadsheet at{" "}
           <span className="font-mono">backend/data/HR DATA (1).xlsx</span> and restart the backend.
         </div>
@@ -204,12 +200,12 @@ export default function WhatsAppPage() {
             {/* Send-rate guard: keeps you under WhatsApp's spam radar. */}
             {rate && (
               <div
-                className={`mb-3 rounded-lg border px-3 py-2 text-sm ${
+                className={`mb-3 rounded-[var(--radius-md)] border px-3 py-2 text-sm ${
                   capReached
-                    ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
+                    ? "border-[var(--danger)]/40 bg-[var(--danger-soft)] text-[var(--danger-fg)]"
                     : cooldownLeft > 0
-                    ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                    : "border-[var(--border)] bg-[var(--background)] text-[var(--muted)]"
+                    ? "border-[var(--warning)]/40 bg-[var(--warning-soft)] text-[var(--warning-fg)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"
                 }`}
               >
                 {capReached ? (
@@ -246,7 +242,7 @@ export default function WhatsAppPage() {
             />
 
             {error && (
-              <div className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+              <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger-fg)]">
                 {error}
               </div>
             )}
@@ -262,7 +258,7 @@ export default function WhatsAppPage() {
                 />
               ))}
               {!loading && contacts.length === 0 && !error && (
-                <div className="rounded-lg border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
+                <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
                   No matching contacts.
                 </div>
               )}

@@ -23,7 +23,7 @@ export function EmailPreview({
     <Card title="Preview & send" step={2}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+          className={`inline-flex items-center gap-1.5 rounded-[var(--radius-full)] px-2.5 py-1 text-xs font-medium ${
             isAI
               ? "bg-[var(--accent)]/10 text-[var(--accent)]"
               : "bg-[var(--muted)]/15 text-[var(--muted)]"
@@ -37,12 +37,12 @@ export function EmailPreview({
           {isAI ? "✨ Template + AI tweaks" : "📝 Template"}
         </span>
         {rendered.note && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">{rendered.note}</span>
+          <span className="text-xs text-[var(--warning-fg)]">{rendered.note}</span>
         )}
       </div>
-      <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+      <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)]">
         {/* Email header */}
-        <div className="space-y-1 border-b border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm">
+        <div className="space-y-1 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm">
           <div className="flex gap-2">
             <span className="w-16 shrink-0 text-[var(--muted)]">From</span>
             <span className="font-medium">{gmailUser || "your Gmail"}</span>
@@ -64,8 +64,8 @@ export function EmailPreview({
         />
 
         {/* Attachment chip */}
-        <div className="flex items-center gap-2 border-t border-[var(--border)] bg-[var(--background)] px-4 py-3">
-          <span className="inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs">
+        <div className="flex items-center gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+          <span className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--elevated)] px-3 py-1.5 text-xs">
             📎 {rendered.attachmentName}
           </span>
           <span className="text-xs text-[var(--muted)]">Resume attached automatically</span>

@@ -76,36 +76,36 @@ export function LinkedInLookup({ onFound }: { onFound: (f: LookupFound) => void 
       </div>
 
       {loading && (
-        <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--muted)]">
+        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
           Looking up the email — this can take <strong>1–2 minutes</strong> (the actor
           scrapes the profile and verifies the address). Hang tight…
         </div>
       )}
 
       {error && (
-        <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger-fg)]">
           {error}
         </div>
       )}
 
       {result && !result.found && !error && (
-        <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning-fg)]">
           No email found for this profile. Enter the recipient email manually below.
         </div>
       )}
 
       {result && result.found && (
-        <div className="mt-3 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-3 text-sm">
+        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-green-700 dark:text-green-300">Found:</span>
+            <span className="font-medium text-[var(--success-fg)]">Found:</span>
             <span className="font-mono">{result.email}</span>
             {result.confidence && (
-              <span className="rounded-full bg-[var(--card)] px-2 py-0.5 text-xs text-[var(--muted)]">
+              <span className="rounded-[var(--radius-full)] bg-[var(--elevated)] px-2 py-0.5 text-xs text-[var(--muted)]">
                 confidence {result.confidence}
               </span>
             )}
             {result.status && (
-              <span className="rounded-full bg-[var(--card)] px-2 py-0.5 text-xs text-[var(--muted)]">
+              <span className="rounded-[var(--radius-full)] bg-[var(--elevated)] px-2 py-0.5 text-xs text-[var(--muted)]">
                 {result.status}
               </span>
             )}
@@ -114,7 +114,7 @@ export function LinkedInLookup({ onFound }: { onFound: (f: LookupFound) => void 
             {[result.name, result.company].filter(Boolean).join(" · ") || "Filled into the compose form below."}
           </div>
           {isLowConfidence(result) && (
-            <div className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+            <div className="mt-2 text-xs font-medium text-[var(--warning-fg)]">
               ⚠ This email looks low-confidence — double-check it before sending.
             </div>
           )}

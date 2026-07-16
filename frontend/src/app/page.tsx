@@ -22,25 +22,9 @@ import { BulkSend } from "@/components/BulkSend";
 import { EmailPreview } from "@/components/EmailPreview";
 import { SendHistory } from "@/components/SendHistory";
 import { StatusPanel } from "@/components/StatusPanel";
-import { Toast } from "@/components/ui";
+import { Badge, EmptyState, SectionHeader, StatusPill, Toast } from "@/components/ui";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
-
-/** Small status pill for the top bar. */
-function Pill({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
-        ok
-          ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300"
-          : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300"
-      }`}
-    >
-      <span className={`inline-block h-1.5 w-1.5 rounded-full ${ok ? "bg-green-500" : "bg-red-500"}`} />
-      {label}
-    </span>
-  );
-}
 
 export default function Home() {
   const [health, setHealth] = useState<Health | null>(null);
@@ -221,34 +205,24 @@ export default function Home() {
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-      {/* Top bar */}
-      <header className="mb-6 flex flex-col gap-3 border-b border-[var(--border)] pb-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <SectionHeader
+        title="Email Sender"
+        subtitle="Send a tailored resume email to any company through your Gmail."
+        action={
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Resume Cold-Email Sender</h1>
-            {health?.aiEnabled && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent)]/10 px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
-                ✨ AI · {health.aiModel}
-              </span>
-            )}
+            {health?.aiEnabled && <Badge tone="accent">✨ AI · {health.aiModel}</Badge>}
+            <StatusPill
+              ok={track === "ai" ? !!health?.hasResumeAI : !!health?.hasResumeSD}
+              label={
+                (track === "ai" ? health?.hasResumeAI : health?.hasResumeSD)
+                  ? `${track === "ai" ? "AI" : "SDE"} resume`
+                  : `No ${track === "ai" ? "AI" : "SDE"} resume`
+              }
+            />
+            <StatusPill ok={!!health?.hasCredentials} label={health?.hasCredentials ? "Gmail connected" : "Gmail not set"} />
           </div>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Type an email and company — send a tailored resume email via your Gmail.
-          </p>
-        </div>
-        {/* Quick status pills — resume reflects the active track */}
-        <div className="flex flex-wrap gap-2">
-          <Pill
-            ok={track === "ai" ? !!health?.hasResumeAI : !!health?.hasResumeSD}
-            label={
-              (track === "ai" ? health?.hasResumeAI : health?.hasResumeSD)
-                ? `${track === "ai" ? "AI" : "SDE"} resume ready`
-                : `No ${track === "ai" ? "AI" : "SDE"} resume`
-            }
-          />
-          <Pill ok={!!health?.hasCredentials} label={health?.hasCredentials ? "Gmail connected" : "Gmail not set"} />
-        </div>
-      </header>
+        }
+      />
 
       {/* Alerts */}
       <div className="mb-5 space-y-3">
@@ -296,9 +270,10 @@ export default function Home() {
               sending={sending}
             />
           ) : (
-            <div className="rounded-xl border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">
-              Fill in the recipient and company, then <span className="font-medium">Preview email</span> to see it here before sending.
-            </div>
+            <EmptyState icon="✉️" title="Your email preview will appear here">
+              Fill in the recipient and company, then <span className="font-medium">Preview email</span> to
+              review the exact message before sending.
+            </EmptyState>
           )}
         </div>
 

@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HRContact, api, setComposePrefill } from "@/lib/api";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, SectionHeader } from "@/components/ui";
 import { HRPager, HRToolbar, RankBadge, SentSection, useHRContacts } from "@/components/hr";
 
 /** One email-contact row: details + a button that prefills the compose form. */
 function EmailRow({ contact, onCompose }: { contact: HRContact; onCompose: (c: HRContact) => void }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+    <div className="flex items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-sm">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{contact.name || "(no name)"}</span>
@@ -22,7 +22,7 @@ function EmailRow({ contact, onCompose }: { contact: HRContact; onCompose: (c: H
       </div>
       <button
         onClick={() => onCompose(contact)}
-        className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition hover:opacity-90"
+        className="shrink-0 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition hover:opacity-90"
       >
         Compose email →
       </button>
@@ -79,22 +79,13 @@ export default function EmailHRPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6 border-b border-[var(--border)] pb-5">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Email outreach</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          HR contacts with email addresses, most important companies first. Click{" "}
-          <span className="font-medium">Compose email</span> to open the sender with this recipient
-          pre-filled — then Preview &amp; Send as usual (AI-tailored, resume attached).
-        </p>
-        <p className="mt-1 text-xs text-[var(--muted)]">
-          Company ranking fills in automatically as you browse. Use{" "}
-          <span className="font-medium">Re-rank all</span> to score every company at once (may take a
-          minute; it keeps working in the background even if it looks slow).
-        </p>
-      </header>
+      <SectionHeader
+        title="Email HR"
+        subtitle="HR contacts with email addresses, most important companies first. Compose email opens the sender with this recipient pre-filled — then Preview & Send as usual (AI-tailored, resume attached). Company ranking fills in as you browse; use Re-rank all to score everything at once."
+      />
 
       {hrEnabled === false ? (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-3 text-sm text-[var(--warning-fg)]">
           No HR data found. Place your spreadsheet at{" "}
           <span className="font-mono">backend/data/HR DATA (1).xlsx</span> and restart the backend.
         </div>
@@ -114,7 +105,7 @@ export default function EmailHRPage() {
           />
 
           {error && (
-            <div className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+            <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger-fg)]">
               {error}
             </div>
           )}
@@ -124,7 +115,7 @@ export default function EmailHRPage() {
               <EmailRow key={`${c.email}-${i}`} contact={c} onCompose={handleCompose} />
             ))}
             {!loading && contacts.length === 0 && !error && (
-              <div className="rounded-lg border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
                 No matching contacts.
               </div>
             )}

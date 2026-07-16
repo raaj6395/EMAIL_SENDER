@@ -15,11 +15,11 @@ function countRecipients(text: string): number {
 function statusColor(s: string): string {
   switch (s) {
     case "sent":
-      return "bg-green-500";
+      return "bg-[var(--success)]";
     case "failed":
-      return "bg-red-500";
+      return "bg-[var(--danger)]";
     case "sending":
-      return "bg-blue-500 animate-pulse";
+      return "bg-[var(--info)] animate-pulse";
     case "skipped":
       return "bg-[var(--muted)]";
     default:
@@ -127,7 +127,7 @@ export function BulkSend({ track }: { track: Track }) {
       </div>
 
       {error && (
-        <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger-fg)]">
           {error}
         </div>
       )}
@@ -136,11 +136,11 @@ export function BulkSend({ track }: { track: Track }) {
         <div className="mt-4">
           <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span>
-              <strong className="text-green-600 dark:text-green-400">{status.sent}</strong> sent
+              <strong className="text-[var(--success-fg)]">{status.sent}</strong> sent
             </span>
             {status.failed > 0 && (
               <span>
-                <strong className="text-red-500">{status.failed}</strong> failed
+                <strong className="text-[var(--danger-fg)]">{status.failed}</strong> failed
               </span>
             )}
             <span className="text-[var(--muted)]">{status.remaining} remaining</span>
@@ -151,10 +151,10 @@ export function BulkSend({ track }: { track: Track }) {
             {status.done && <span className="font-medium text-[var(--accent)]">· done</span>}
           </div>
 
-          <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-2">
+          <div className="max-h-64 space-y-1 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-2">
             {status.items.map((it, i) => (
               <div key={`${it.email}-${i}`} className="flex items-center gap-2 text-xs">
-                <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor(it.status)}`} />
+                <span className={`inline-block h-2 w-2 shrink-0 rounded-[var(--radius-full)] ${statusColor(it.status)}`} />
                 <span className="truncate font-medium">{it.email}</span>
                 <span className="truncate text-[var(--muted)]">
                   {it.company}

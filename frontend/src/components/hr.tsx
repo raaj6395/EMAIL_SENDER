@@ -129,14 +129,14 @@ export function HRPager({
 export function RankBadge({ rank }: { rank: number }) {
   const tone =
     rank >= 85
-      ? "bg-green-500/15 text-green-700 dark:text-green-300"
+      ? "bg-[var(--success-soft)] text-[var(--success-fg)]"
       : rank >= 60
-      ? "bg-blue-500/15 text-blue-700 dark:text-blue-300"
+      ? "bg-[var(--info-soft)] text-[var(--info-fg)]"
       : rank >= 40
-      ? "bg-[var(--background)] text-[var(--muted)]"
-      : "bg-[var(--background)] text-[var(--muted)]";
+      ? "bg-[var(--surface)] text-[var(--muted)]"
+      : "bg-[var(--surface)] text-[var(--muted)]";
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`} title="Company importance (AI-ranked)">
+    <span className={`rounded-[var(--radius-full)] px-2 py-0.5 text-xs font-medium ${tone}`} title="Company importance (AI-ranked)">
       ★ {rank}
     </span>
   );
@@ -158,11 +158,11 @@ export function SentSection({ sent }: { sent: HRSentRecord[] }) {
           {sent.map((s, i) => (
             <div
               key={`${s.key}-${i}`}
-              className="flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5 text-sm"
+              className="flex items-start justify-between gap-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-[var(--radius-full)] bg-[var(--success)]" />
                   <span className="font-medium">{s.name || "(no name)"}</span>
                   <span className="truncate text-[var(--muted)]">
                     {[s.company, s.role].filter(Boolean).join(" · ")}

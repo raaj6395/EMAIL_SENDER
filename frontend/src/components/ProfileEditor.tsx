@@ -65,11 +65,11 @@ export function ProfileEditor({
 
       <div className="mt-4">
         <Field label="Skills" hint="Type a skill and press Enter">
-          <div className="flex flex-wrap gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-2">
+          <div className="flex flex-wrap gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-2">
             {profile.skills.map((s) => (
               <span
                 key={s}
-                className="inline-flex items-center gap-1 rounded-full bg-[var(--accent)]/10 px-2.5 py-1 text-xs font-medium text-[var(--accent)]"
+                className="inline-flex items-center gap-1 rounded-[var(--radius-full)] bg-[var(--accent)]/10 px-2.5 py-1 text-xs font-medium text-[var(--accent)]"
               >
                 {s}
                 <button onClick={() => removeSkill(s)} className="opacity-60 hover:opacity-100" aria-label={`Remove ${s}`}>
@@ -123,7 +123,7 @@ export function ProfileEditor({
         <Button onClick={onSave} loading={saving}>
           Save profile
         </Button>
-        {saved && <span className="text-xs text-green-600 dark:text-green-400">✓ Saved</span>}
+        {saved && <span className="text-xs text-[var(--success-fg)]">✓ Saved</span>}
       </div>
     </Card>
   );

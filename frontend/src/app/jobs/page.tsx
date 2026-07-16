@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, Health, JobTimeRange, JobsState, api } from "@/lib/api";
 import { JobSearch } from "@/components/JobSearch";
-import { Toast } from "@/components/ui";
+import { SectionHeader, Toast } from "@/components/ui";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
 
@@ -109,14 +109,10 @@ export default function JobsPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6 border-b border-[var(--border)] pb-5">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Job Search</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Latest fresher (0–1 yr) software jobs in India, AI-screened for eligibility.
-          Click <span className="font-medium">Apply</span> to open a job on LinkedIn — it
-          moves to your Applied list automatically.
-        </p>
-      </header>
+      <SectionHeader
+        title="Job Search"
+        subtitle="Latest fresher (0–1 yr) software jobs in India, AI-screened for eligibility. Clicking Apply opens the job on LinkedIn and moves it to your Applied list."
+      />
 
       {toast && (
         <div className="mb-5">
@@ -125,7 +121,7 @@ export default function JobsPage() {
       )}
 
       {health && !health.jobsEnabled ? (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-3 text-sm text-[var(--warning-fg)]">
           Job search isn’t configured. Set <span className="font-mono">APIFY_TOKEN</span> in{" "}
           <span className="font-mono">backend/.env</span> and restart the backend.
         </div>

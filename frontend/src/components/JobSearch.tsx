@@ -10,7 +10,7 @@ import {
 import { Button, Card } from "./ui";
 
 const selectClass =
-  "rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 disabled:opacity-50";
+  "rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 disabled:opacity-50";
 
 function formatWhen(iso: string): string {
   const d = new Date(iso);
@@ -26,7 +26,7 @@ function formatWhen(iso: string): string {
 /** Small rounded pill for a job attribute (experience, arrangement, etc.). */
 function Pill({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full bg-[var(--background)] px-2 py-0.5 text-xs text-[var(--muted)]">
+    <span className="rounded-[var(--radius-full)] bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--muted)]">
       {children}
     </span>
   );
@@ -37,10 +37,10 @@ function VerdictBadge({ verdict }: { verdict: StoredJob["verdict"] }) {
   const eligible = verdict === "eligible";
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+      className={`rounded-[var(--radius-full)] px-2 py-0.5 text-xs font-medium ${
         eligible
-          ? "bg-green-500/15 text-green-700 dark:text-green-300"
-          : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+          ? "bg-[var(--success-soft)] text-[var(--success-fg)]"
+          : "bg-[var(--warning-soft)] text-[var(--warning-fg)]"
       }`}
     >
       {eligible ? "Eligible" : "Maybe"}
@@ -57,7 +57,7 @@ function OpenJobRow({
   onApply: (id: string) => void;
 }) {
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate font-medium">{job.title}</div>
@@ -70,7 +70,7 @@ function OpenJobRow({
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => onApply(job.id)}
-          className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+          className="shrink-0 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
         >
           Apply ↗
         </a>
@@ -95,10 +95,10 @@ function OpenJobRow({
 /** One applied job card (muted, with the applied timestamp). */
 function AppliedJobRow({ job }: { job: StoredJob }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5 text-sm">
+    <div className="flex items-start justify-between gap-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
+          <span className="inline-block h-2 w-2 shrink-0 rounded-[var(--radius-full)] bg-[var(--success)]" />
           <a
             href={job.url}
             target="_blank"
@@ -203,7 +203,7 @@ export function JobSearch({
       }
     >
       {blocked && (
-        <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+        <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning-fg)]">
           To protect your Apify credits, the job search runs at most{" "}
           <strong>once every 6 hours</strong>.
           {retryLabel && <> Next search available in ~{retryLabel}.</>} Showing your
@@ -212,7 +212,7 @@ export function JobSearch({
       )}
 
       {loading && (
-        <div className="mb-3 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--muted)]">
+        <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
           Fetching the latest jobs and checking each one for eligibility — this can
           take <strong>up to a minute</strong>. Hang tight…
         </div>
@@ -223,7 +223,7 @@ export function JobSearch({
         Open jobs{open.length > 0 && <span className="text-[var(--muted)]"> · {open.length}</span>}
       </div>
       {open.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
+        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
           No open jobs yet — click <span className="font-medium">Find jobs</span> to
           fetch eligible roles.
         </div>

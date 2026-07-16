@@ -38,12 +38,12 @@ export function SendHistory({
             "No emails sent yet."
           ) : (
             <>
-              <span className="font-medium text-[var(--foreground)]">{entries.length}</span> total ·{" "}
-              <span className="text-green-600 dark:text-green-400">{sent} sent</span>
+              <span className="font-medium text-[var(--fg)]">{entries.length}</span> total ·{" "}
+              <span className="text-[var(--success-fg)]">{sent} sent</span>
               {failed > 0 && (
                 <>
                   {" "}
-                  · <span className="text-red-500">{failed} failed</span>
+                  · <span className="text-[var(--danger-fg)]">{failed} failed</span>
                 </>
               )}
             </>
@@ -63,8 +63,8 @@ export function SendHistory({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-block h-2 w-2 shrink-0 rounded-full ${
-                      e.status === "sent" ? "bg-green-500" : "bg-red-500"
+                    className={`inline-block h-2 w-2 shrink-0 rounded-[var(--radius-full)] ${
+                      e.status === "sent" ? "bg-[var(--success)]" : "bg-[var(--danger)]"
                     }`}
                   />
                   <span className="font-medium">{e.company}</span>
@@ -72,7 +72,7 @@ export function SendHistory({
                 </div>
                 <div className="mt-0.5 truncate pl-4 text-xs text-[var(--muted)]">{e.subject}</div>
                 {e.status === "failed" && e.error && (
-                  <div className="mt-0.5 pl-4 text-xs text-red-500">{e.error}</div>
+                  <div className="mt-0.5 pl-4 text-xs text-[var(--danger-fg)]">{e.error}</div>
                 )}
               </div>
               <span className="shrink-0 whitespace-nowrap text-xs text-[var(--muted)]">
