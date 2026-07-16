@@ -188,6 +188,26 @@ func (c *Config) ValidateForSend(track string) error {
 	return nil
 }
 
+// Warnings returns non-fatal configuration issues worth surfacing at startup —
+// half-configured features that will silently not work. An empty slice means
+// nothing looks off.
+func (c *Config) Warnings() []string {
+	var w []string
+	// Gmail: one credential without the other means sending won't work.
+	if (c.GmailUser != "") != (c.GmailAppPassword != "") {
+		w = append(w, "Gmail: set BOTH GMAIL_USER and GMAIL_APP_PASSWORD (only one is set) — sending is disabled")
+	}
+	// Digest configured but no way to send it.
+	if c.DigestTo != "" && !c.HasCredentials() {
+		w = append(w, "DIGEST_TO is set but Gmail credentials are missing — the digest can't be sent")
+	}
+	// AI resume present but no OpenAI key → AI-track emails fall back to template.
+	if c.HasResumeFor("ai") && !c.HasAI() {
+		w = append(w, "ai_resume.pdf found but OPENAI_API_KEY is unset — AI-track emails use the plain template")
+	}
+	return w
+}
+
 func getenv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

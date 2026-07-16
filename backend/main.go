@@ -37,6 +37,11 @@ func main() {
 	log.Printf("  jobs search:  %v (actor %s)", cfg.HasJobs(), cfg.JobsActorID)
 	log.Printf("  hr outreach:  %v", cfg.HasHR())
 
+	// Surface half-configured features so they're not silently broken.
+	for _, msg := range cfg.Warnings() {
+		log.Printf("  ⚠ %s", msg)
+	}
+
 	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
