@@ -58,6 +58,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/hr/rerank", s.handleHRRerank)
 	mux.HandleFunc("POST /api/hr/sent", s.handleHRMarkSent)
 
+	// Inbox reply assistant
+	mux.HandleFunc("POST /api/replies/check", s.handleRepliesCheck)
+	mux.HandleFunc("GET /api/replies", s.handleRepliesList)
+	mux.HandleFunc("POST /api/replies/send", s.handleReplySend)
+	mux.HandleFunc("POST /api/replies/dismiss", s.handleReplyDismiss)
+
 	// Middleware, outermost first: recover from panics, log requests, then CORS.
 	return chain(mux, recoverer, requestLogger, s.corsMiddleware)
 }

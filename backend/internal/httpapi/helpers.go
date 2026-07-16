@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"emailsender/internal/email"
+	"emailsender/internal/inbox"
 	"emailsender/internal/jobs"
 	"emailsender/internal/lookup"
 	"emailsender/internal/resume"
@@ -45,6 +46,15 @@ func (s *Server) jobsConfig() jobs.SearchConfig {
 	return jobs.SearchConfig{
 		Token:   s.cfg.ApifyToken,
 		ActorID: s.cfg.JobsActorID,
+	}
+}
+
+func (s *Server) imapConfig() inbox.Config {
+	return inbox.Config{
+		Host:     s.cfg.IMAPHost,
+		Port:     s.cfg.IMAPPort,
+		Username: s.cfg.GmailUser,
+		Password: s.cfg.GmailAppPassword,
 	}
 }
 

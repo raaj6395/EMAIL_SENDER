@@ -26,6 +26,58 @@ func Send(cfg SMTPConfig, fromName, recipient string, r Rendered, resumePath str
 	return dialAndSend(cfg, msg)
 }
 
+// SendReply sends a plain-text reply in an existing thread. It sets the
+// In-Reply-To / References headers (from the original message id) so Gmail and
+// other clients thread it under the original conversation. No attachment.
+func SendReply(cfg SMTPConfig, fromName, recipient, subject, body, inReplyTo string, references []string) error {
+	msg := mail.NewMsg()
+
+	var fromErr error
+	if fromName != "" {
+		fromErr = msg.FromFormat(fromName, cfg.Username)
+	} else {
+		fromErr = msg.From(cfg.Username)
+	}
+	if fromErr != nil {
+		return fmt.Errorf("invalid sender address %q: %w", cfg.Username, fromErr)
+	}
+	if err := msg.To(recipient); err != nil {
+		return fmt.Errorf("invalid recipient address %q: %w", recipient, err)
+	}
+	msg.Subject(subject)
+	msg.SetBodyString(mail.TypeTextPlain, body)
+
+	// Threading headers (message ids are angle-bracketed per RFC 5322).
+	if inReplyTo != "" {
+		ref := "<" + inReplyTo + ">"
+		msg.SetGenHeader("In-Reply-To", ref)
+		refs := ref
+		if len(references) > 0 {
+			var b []string
+			for _, r := range references {
+				if r != "" {
+					b = append(b, "<"+r+">")
+				}
+			}
+			b = append(b, ref)
+			refs = joinSpace(b)
+		}
+		msg.SetGenHeader("References", refs)
+	}
+	return dialAndSend(cfg, msg)
+}
+
+func joinSpace(ss []string) string {
+	out := ""
+	for i, s := range ss {
+		if i > 0 {
+			out += " "
+		}
+		out += s
+	}
+	return out
+}
+
 // sendNoAttachment delivers a rendered email with no file attachment (digests).
 func sendNoAttachment(cfg SMTPConfig, fromName, recipient string, r Rendered) error {
 	msg, err := buildMessage(cfg, fromName, recipient, r)
