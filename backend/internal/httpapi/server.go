@@ -58,22 +58,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/hr/rerank", s.handleHRRerank)
 	mux.HandleFunc("POST /api/hr/sent", s.handleHRMarkSent)
 
-	return s.withCORS(mux)
-}
-
-// ---- middleware ----
-
-func (s *Server) withCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", s.cfg.AllowedOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	// Middleware, outermost first: recover from panics, log requests, then CORS.
+	return chain(mux, recoverer, requestLogger, s.corsMiddleware)
 }
 
 // ---- shared JSON responders ----
