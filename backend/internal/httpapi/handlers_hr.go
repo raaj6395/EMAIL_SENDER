@@ -184,13 +184,8 @@ func (s *Server) handleHRMarkSent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if rs.Blocked {
-			msg := ""
-			if rs.CapReached {
-				mins := (rs.ResetIn + 59) / 60
-				msg = fmt.Sprintf("WhatsApp limit reached (%d in %dh). Pause ~%d min so you don't get flagged.", rs.WindowCap, rs.WindowHours, mins)
-			} else {
-				msg = fmt.Sprintf("Slow down — wait %ds before the next WhatsApp message to avoid getting flagged.", rs.CooldownLeft)
-			}
+			mins := (rs.ResetIn + 59) / 60
+			msg := fmt.Sprintf("WhatsApp limit reached (%d in %dh). Pause ~%d min so you don't get flagged.", rs.WindowCap, rs.WindowHours, mins)
 			writeJSON(w, http.StatusTooManyRequests, map[string]any{"ok": false, "error": msg, "rate": rs})
 			return
 		}

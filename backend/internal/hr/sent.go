@@ -75,16 +75,13 @@ func SentKeys(path, channel string) (map[string]bool, error) {
 	return out, nil
 }
 
-// WhatsApp send-rate limits, chosen from research on avoiding bans for cold
-// outreach from a personal number (see the app docs / commit message):
-//   • a randomized 30-60s gap between sends — we enforce a 30s hard floor and
-//     let the UI display a longer suggested wait;
-//   • a conservative cap for a new/unwarmed number, counted over a rolling
-//     6-hour window (not a calendar day) so the limit is spread across the day.
+// WhatsApp send-rate limit: a conservative cap for a new/unwarmed number,
+// counted over a rolling 6-hour window (not a calendar day) so sends are spread
+// out. There is intentionally NO per-message cooldown — the window cap alone is
+// the guard; you can send messages back-to-back until the cap is reached.
 const (
-	WhatsAppCooldown   = 30 * time.Second
-	WhatsAppWindowCap  = 15
-	WhatsAppWindow     = 6 * time.Hour
+	WhatsAppWindowCap = 15
+	WhatsAppWindow    = 6 * time.Hour
 )
 
 // RateStatus describes whether a new send is currently allowed for a channel.
@@ -112,25 +109,14 @@ func WhatsAppRateStatus(path string) (RateStatus, error) {
 	now := time.Now()
 	windowStart := now.Add(-WhatsAppWindow)
 
-	// Collect WhatsApp send times inside the rolling window + the most recent send.
+	// Collect WhatsApp send times inside the rolling window.
 	var inWindow []time.Time
-	var last time.Time
 	for _, r := range recs {
 		if r.Channel != "whatsapp" {
 			continue
 		}
 		if r.SentAt.After(windowStart) {
 			inWindow = append(inWindow, r.SentAt)
-		}
-		if r.SentAt.After(last) {
-			last = r.SentAt
-		}
-	}
-
-	cooldownLeft := 0
-	if !last.IsZero() {
-		if left := WhatsAppCooldown - now.Sub(last); left > 0 {
-			cooldownLeft = int(left.Seconds()) + 1
 		}
 	}
 
@@ -155,10 +141,10 @@ func WhatsAppRateStatus(path string) (RateStatus, error) {
 		SentInWindow: len(inWindow),
 		WindowCap:    WhatsAppWindowCap,
 		WindowHours:  int(WhatsAppWindow.Hours()),
-		CooldownLeft: cooldownLeft,
+		CooldownLeft: 0, // no per-message cooldown — only the window cap applies
 		ResetIn:      resetIn,
 		CapReached:   capReached,
-		Blocked:      capReached || cooldownLeft > 0,
+		Blocked:      capReached,
 	}, nil
 }
 

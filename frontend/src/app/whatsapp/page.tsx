@@ -124,23 +124,10 @@ export default function WhatsAppPage() {
       .catch(() => setHrEnabled(false));
   }, []);
 
-  // Tick the cooldown down locally every second so the countdown is live and the
-  // Send buttons re-enable on their own when it hits zero.
-  useEffect(() => {
-    if (!rate || rate.cooldownLeft <= 0) return;
-    const t = setInterval(() => {
-      setRate((r) =>
-        r && r.cooldownLeft > 0
-          ? { ...r, cooldownLeft: r.cooldownLeft - 1, blocked: r.capReached || r.cooldownLeft - 1 > 0 }
-          : r
-      );
-    }, 1000);
-    return () => clearInterval(t);
-  }, [rate, setRate]);
-
+  // Sends are blocked only when the 6-hour window cap is reached — there is no
+  // per-message cooldown.
   const capReached = rate?.capReached ?? false;
-  const cooldownLeft = rate?.cooldownLeft ?? 0;
-  const blocked = capReached || cooldownLeft > 0;
+  const blocked = capReached;
 
   // Clicking "Send on WhatsApp" records the contact as sent (server enforces the
   // rate limit), then refreshes so it moves into the Sent section.
@@ -197,14 +184,14 @@ export default function WhatsAppPage() {
           </p>
 
           <div className="mt-4">
-            {/* Send-rate guard: keeps you under WhatsApp's spam radar. */}
+            {/* Send-rate guard: a rolling 6-hour cap keeps you under WhatsApp's
+                spam radar. No per-message cooldown — send back-to-back until the
+                cap is reached. */}
             {rate && (
               <div
                 className={`mb-3 rounded-[var(--radius-md)] border px-3 py-2 text-sm ${
                   capReached
                     ? "border-[var(--danger)]/40 bg-[var(--danger-soft)] text-[var(--danger-fg)]"
-                    : cooldownLeft > 0
-                    ? "border-[var(--warning)]/40 bg-[var(--warning-soft)] text-[var(--warning-fg)]"
                     : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"
                 }`}
               >
@@ -215,19 +202,12 @@ export default function WhatsAppPage() {
                     </strong>
                     . Pause ~{Math.ceil(rate.resetIn / 60)} min so your number doesn’t get flagged.
                   </>
-                ) : cooldownLeft > 0 ? (
-                  <>
-                    Cooling down — next message in <strong>{cooldownLeft}s</strong>. Sent:{" "}
-                    {rate.sentInWindow}/{rate.windowCap} in the last {rate.windowHours}h.
-                  </>
                 ) : (
                   <>
-                    Safe to send.{" "}
                     <strong>
                       {rate.sentInWindow}/{rate.windowCap}
                     </strong>{" "}
-                    in the last {rate.windowHours}h · a short pause is enforced between messages to
-                    avoid getting flagged.
+                    sent in the last {rate.windowHours}h. Send freely until the cap.
                   </>
                 )}
               </div>
