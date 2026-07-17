@@ -37,6 +37,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Email compose / send / bulk / history / digest
 	mux.HandleFunc("POST /api/preview", s.handlePreview)
+	mux.HandleFunc("POST /api/verify-email", s.handleVerifyEmail)
 	mux.HandleFunc("POST /api/send", s.handleSend)
 	mux.HandleFunc("POST /api/batch", s.handleBatchStart)
 	mux.HandleFunc("GET /api/batch", s.handleBatchStatus)

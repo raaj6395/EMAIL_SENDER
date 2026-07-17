@@ -142,6 +142,13 @@ export default function Home() {
     setPreviewing(true);
     setToast(null);
     try {
+      // Pre-send check: block a clearly-undeliverable recipient (bad syntax /
+      // dead domain) before we bother rendering or sending.
+      const check = await api.verifyEmail(compose.recipientEmail);
+      if (!check.valid) {
+        setToast({ kind: "error", message: check.reason });
+        return;
+      }
       // Ensure the latest profile edits are persisted before rendering.
       await api.saveProfile(profile, track);
       const r = await api.preview({ ...compose, track });

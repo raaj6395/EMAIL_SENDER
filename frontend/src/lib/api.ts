@@ -57,6 +57,14 @@ export interface ComposeInput {
   track?: Track; // "sd" (default) or "ai" — selects resume/profile/AI flavor
 }
 
+/** Result of the pre-send email check (syntax + MX). */
+export interface VerifyResult {
+  email: string;
+  valid: boolean; // false only for clear failures (bad syntax / no MX)
+  code: "ok" | "bad_syntax" | "no_mx" | "error";
+  reason: string;
+}
+
 /** One recipient in a bulk send. */
 export interface BatchItem {
   email: string;
@@ -299,6 +307,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ rows, track }),
     }),
+  verifyEmail: (email: string) =>
+    request<VerifyResult>("/api/verify-email", { method: "POST", body: JSON.stringify({ email }) }),
   batchStatus: () => request<BatchStatus>("/api/batch"),
   batchPause: () => request<BatchStatus>("/api/batch/pause", { method: "POST" }),
   batchResume: () => request<BatchStatus>("/api/batch/resume", { method: "POST" }),

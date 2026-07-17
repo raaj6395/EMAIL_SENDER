@@ -11,7 +11,21 @@ import (
 
 	"emailsender/internal/batch"
 	"emailsender/internal/email"
+	"emailsender/internal/verify"
 )
+
+// handleVerifyEmail runs the pre-send check (syntax + MX) for one address so the
+// compose form can flag a bad recipient before Preview/Send.
+func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, verify.Check(r.Context(), in.Email))
+}
 
 func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	in, p, ok := s.decodeComposeAndProfile(w, r)
@@ -29,6 +43,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.cfg.ValidateForSend(in.Track); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Pre-send check: block clearly-undeliverable addresses (bad syntax / dead
+	// domain) so we don't waste a send that will just bounce.
+	if res := verify.Check(r.Context(), in.RecipientEmail); !res.Valid {
+		writeError(w, http.StatusBadRequest, res.Reason)
 		return
 	}
 
@@ -77,6 +98,11 @@ func (s *Server) sendOneBatch(ctx context.Context, track string, it batch.Item) 
 	p, err := s.loadProfileForTrack(track)
 	if err != nil || p == nil {
 		return fmt.Errorf("no %s profile saved", strings.ToUpper(track))
+	}
+
+	// Skip clearly-undeliverable addresses (bad syntax / dead domain) up front.
+	if res := verify.Check(ctx, it.Email); !res.Valid {
+		return fmt.Errorf("%s", res.Reason)
 	}
 
 	in := email.ComposeInput{
