@@ -69,6 +69,7 @@ export interface BatchItem {
 /** Live status of the bulk-send queue. */
 export interface BatchStatus {
   active: boolean;
+  paused: boolean;
   track: Track;
   total: number;
   sent: number;
@@ -299,6 +300,8 @@ export const api = {
       body: JSON.stringify({ rows, track }),
     }),
   batchStatus: () => request<BatchStatus>("/api/batch"),
+  batchPause: () => request<BatchStatus>("/api/batch/pause", { method: "POST" }),
+  batchResume: () => request<BatchStatus>("/api/batch/resume", { method: "POST" }),
   batchCancel: () => request<BatchStatus>("/api/batch/cancel", { method: "POST" }),
   history: () => request<HistoryEntry[]>("/api/history"),
   sendDigest: () => request<DigestResult>("/api/digest", { method: "POST" }),

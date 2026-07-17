@@ -34,7 +34,8 @@ type Item struct {
 
 // Snapshot is a read-only view of the batch for the UI.
 type Snapshot struct {
-	Active    bool   `json:"active"`    // a batch is currently running
+	Active    bool   `json:"active"`    // a batch is currently running (incl. paused)
+	Paused    bool   `json:"paused"`    // running but paused (Stop pressed)
 	Track     string `json:"track"`     // "sd" | "ai"
 	Total     int    `json:"total"`
 	Sent      int    `json:"sent"`
@@ -43,7 +44,7 @@ type Snapshot struct {
 	NextInSec int    `json:"nextInSec"` // approx seconds until the next send fires
 	Items     []Item `json:"items"`
 	StartedAt string `json:"startedAt,omitempty"`
-	Done      bool   `json:"done"` // finished (or cancelled) — items reflect final state
+	Done      bool   `json:"done"` // finished (or aborted) — items reflect final state
 }
 
 // SendFunc processes one item: compose (AI) + send + record history. It returns
@@ -53,17 +54,24 @@ type SendFunc func(ctx context.Context, track string, it Item) error
 // Manager runs at most one batch at a time.
 type Manager struct {
 	mu        sync.Mutex
+	cond      *sync.Cond // signals the worker when paused/resumed/aborted
 	items     []Item
 	track     string
 	active    bool
+	paused    bool
 	done      bool
 	startedAt time.Time
 	nextAt    time.Time // when the next send is scheduled to fire
 	cancel    context.CancelFunc
+	ctx       context.Context // current batch context (for the pause gate)
 }
 
 // NewManager creates an idle batch manager.
-func NewManager() *Manager { return &Manager{} }
+func NewManager() *Manager {
+	m := &Manager{}
+	m.cond = sync.NewCond(&m.mu)
+	return m
+}
 
 // Running reports whether a batch is currently in progress.
 func (m *Manager) Running() bool {
@@ -89,22 +97,38 @@ func (m *Manager) Start(items []Item, track string, maxGapSec int, send SendFunc
 	m.items = items
 	m.track = track
 	m.active = true
+	m.paused = false
 	m.done = false
 	m.startedAt = time.Now()
 	m.nextAt = time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
+	m.ctx = ctx
 	m.mu.Unlock()
 
 	go m.run(ctx, maxGapSec, send)
 	return true
 }
 
-// run processes each item sequentially with a random gap between sends.
+// waitIfPaused blocks the worker while the batch is paused, returning false if
+// the batch was aborted (ctx cancelled) while waiting.
+func (m *Manager) waitIfPaused(ctx context.Context) bool {
+	m.mu.Lock()
+	for m.paused && ctx.Err() == nil {
+		m.nextAt = time.Time{} // no scheduled send while paused
+		m.cond.Wait()          // released by Resume() or Cancel() via Broadcast
+	}
+	m.mu.Unlock()
+	return ctx.Err() == nil
+}
+
+// run processes each item sequentially with a random gap between sends, pausing
+// before a send whenever the batch is paused.
 func (m *Manager) run(ctx context.Context, maxGapSec int, send SendFunc) {
 	defer func() {
 		m.mu.Lock()
 		m.active = false
+		m.paused = false
 		m.done = true
 		m.cancel = nil
 		m.mu.Unlock()
@@ -112,6 +136,11 @@ func (m *Manager) run(ctx context.Context, maxGapSec int, send SendFunc) {
 
 	for i := range m.items {
 		if ctx.Err() != nil {
+			m.markRemainingSkipped(i)
+			return
+		}
+		// Hold here while paused; abort during a pause exits cleanly.
+		if !m.waitIfPaused(ctx) {
 			m.markRemainingSkipped(i)
 			return
 		}
@@ -140,7 +169,26 @@ func (m *Manager) run(ctx context.Context, maxGapSec int, send SendFunc) {
 	}
 }
 
-// Cancel stops the batch after the in-flight send; remaining items are skipped.
+// Pause holds the batch before the next send. The in-flight send (if any)
+// finishes; remaining items stay queued until Resume. No-op if not running.
+func (m *Manager) Pause() {
+	m.mu.Lock()
+	if m.active {
+		m.paused = true
+	}
+	m.mu.Unlock()
+}
+
+// Resume continues a paused batch.
+func (m *Manager) Resume() {
+	m.mu.Lock()
+	m.paused = false
+	m.mu.Unlock()
+	m.cond.Broadcast() // wake the worker if it's waiting in waitIfPaused
+}
+
+// Cancel (Abort) stops the batch entirely after the in-flight send; remaining
+// items are skipped. Also wakes a paused worker so abort works while paused.
 func (m *Manager) Cancel() {
 	m.mu.Lock()
 	c := m.cancel
@@ -148,6 +196,7 @@ func (m *Manager) Cancel() {
 	if c != nil {
 		c()
 	}
+	m.cond.Broadcast()
 }
 
 // Get returns a snapshot for the UI.
@@ -167,7 +216,7 @@ func (m *Manager) Get() Snapshot {
 		}
 	}
 	nextIn := 0
-	if m.active && !m.nextAt.IsZero() {
+	if m.active && !m.paused && !m.nextAt.IsZero() {
 		if d := time.Until(m.nextAt); d > 0 {
 			nextIn = int(d.Seconds()) + 1
 		}
@@ -177,6 +226,7 @@ func (m *Manager) Get() Snapshot {
 
 	snap := Snapshot{
 		Active:    m.active,
+		Paused:    m.paused,
 		Track:     m.track,
 		Total:     len(m.items),
 		Sent:      sent,

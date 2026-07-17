@@ -65,6 +65,7 @@ export function BulkSend({ track }: { track: Track }) {
 
   const recipientCount = countRecipients(rows);
   const running = status?.active ?? false;
+  const paused = status?.paused ?? false;
 
   const handleStart = async () => {
     setStarting(true);
@@ -80,7 +81,25 @@ export function BulkSend({ track }: { track: Track }) {
     }
   };
 
-  const handleCancel = async () => {
+  const handlePause = async () => {
+    try {
+      setStatus(await api.batchPause());
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleResume = async () => {
+    try {
+      const s = await api.batchResume();
+      setStatus(s);
+      if (s.active && !pollRef.current) pollRef.current = setInterval(poll, 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleAbort = async () => {
     try {
       setStatus(await api.batchCancel());
     } catch {
@@ -110,13 +129,27 @@ export function BulkSend({ track }: { track: Track }) {
         className="font-mono text-xs"
       />
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button onClick={handleStart} disabled={recipientCount === 0 || running} loading={starting}>
-          {running ? "Sending…" : `Send to ${recipientCount || 0} recipient${recipientCount === 1 ? "" : "s"}`}
+          {running
+            ? paused
+              ? "Paused"
+              : "Sending…"
+            : `Send to ${recipientCount || 0} recipient${recipientCount === 1 ? "" : "s"}`}
         </Button>
+        {running && !paused && (
+          <Button variant="secondary" onClick={handlePause}>
+            Stop
+          </Button>
+        )}
+        {running && paused && (
+          <Button variant="secondary" onClick={handleResume}>
+            Resume
+          </Button>
+        )}
         {running && (
-          <Button variant="secondary" onClick={handleCancel}>
-            Cancel
+          <Button variant="danger" onClick={handleAbort}>
+            Abort
           </Button>
         )}
         {!running && recipientCount > 0 && (
@@ -145,8 +178,13 @@ export function BulkSend({ track }: { track: Track }) {
             )}
             <span className="text-[var(--muted)]">{status.remaining} remaining</span>
             <span className="text-[var(--muted)]">· {status.total} total</span>
-            {status.active && status.nextInSec > 0 && (
-              <span className="text-[var(--muted)]">· next in ~{status.nextInSec}s</span>
+            {status.paused ? (
+              <span className="font-medium text-[var(--warning-fg)]">· paused</span>
+            ) : (
+              status.active &&
+              status.nextInSec > 0 && (
+                <span className="text-[var(--muted)]">· next in ~{status.nextInSec}s</span>
+              )
             )}
             {status.done && <span className="font-medium text-[var(--accent)]">· done</span>}
           </div>

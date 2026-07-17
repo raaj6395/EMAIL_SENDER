@@ -145,7 +145,19 @@ func (s *Server) handleBatchStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.batch.Get())
 }
 
-// handleBatchCancel stops the remaining queue.
+// handleBatchPause holds the queue before the next send (Stop).
+func (s *Server) handleBatchPause(w http.ResponseWriter, r *http.Request) {
+	s.batch.Pause()
+	writeJSON(w, http.StatusOK, s.batch.Get())
+}
+
+// handleBatchResume continues a paused queue.
+func (s *Server) handleBatchResume(w http.ResponseWriter, r *http.Request) {
+	s.batch.Resume()
+	writeJSON(w, http.StatusOK, s.batch.Get())
+}
+
+// handleBatchCancel aborts the batch; remaining items are skipped.
 func (s *Server) handleBatchCancel(w http.ResponseWriter, r *http.Request) {
 	s.batch.Cancel()
 	writeJSON(w, http.StatusOK, s.batch.Get())

@@ -40,6 +40,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/send", s.handleSend)
 	mux.HandleFunc("POST /api/batch", s.handleBatchStart)
 	mux.HandleFunc("GET /api/batch", s.handleBatchStatus)
+	mux.HandleFunc("POST /api/batch/pause", s.handleBatchPause)
+	mux.HandleFunc("POST /api/batch/resume", s.handleBatchResume)
 	mux.HandleFunc("POST /api/batch/cancel", s.handleBatchCancel)
 	mux.HandleFunc("GET /api/history", s.handleHistory)
 	mux.HandleFunc("POST /api/digest", s.handleSendDigest)
