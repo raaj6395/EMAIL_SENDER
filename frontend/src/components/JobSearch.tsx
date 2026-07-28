@@ -134,7 +134,7 @@ export function JobSearch({
   onTimeRangeChange,
 }: {
   jobs: JobsState;
-  onSearch: () => void;
+  onSearch: (force?: boolean) => void;
   onApply: (id: string) => void;
   loading: boolean;
   blocked?: boolean; // true when a fresh Apify run is rate-limited right now
@@ -186,8 +186,8 @@ export function JobSearch({
           </label>
           <Button
             variant="primary"
-            onClick={() => onSearch()}
-            loading={loading}
+            onClick={() => onSearch(false)}
+            loading={loading && !blocked}
             disabled={blocked}
             title={
               blocked
@@ -197,8 +197,18 @@ export function JobSearch({
                 : undefined
             }
           >
-            {loading ? "Finding…" : "Find jobs"}
+            {loading && !blocked ? "Finding…" : "Find jobs"}
           </Button>
+          {blocked && (
+            <Button
+              variant="secondary"
+              onClick={() => onSearch(true)}
+              loading={loading}
+              title="Ignore the 6-hour limit and run a fresh search now (spends Apify credit and resets the timer)"
+            >
+              {loading ? "Forcing…" : "Force search"}
+            </Button>
+          )}
         </div>
       }
     >
@@ -207,7 +217,7 @@ export function JobSearch({
           To protect your Apify credits, the job search runs at most{" "}
           <strong>once every 6 hours</strong>.
           {retryLabel && <> Next search available in ~{retryLabel}.</>} Showing your
-          saved jobs below.
+          saved jobs below — or use <strong>Force search</strong> to run now anyway.
         </div>
       )}
 

@@ -57,11 +57,11 @@ export default function JobsPage() {
     refreshJobs();
   }, [refreshJobs]);
 
-  const handleSearch = async () => {
+  const handleSearch = async (force = false) => {
     setSearching(true);
     setToast(null);
     try {
-      const res = await api.searchJobs({ limit, timeRange });
+      const res = await api.searchJobs({ limit, timeRange, force });
       setJobs((j) => ({
         ...j,
         open: res.open ?? [],

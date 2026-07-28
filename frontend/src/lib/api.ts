@@ -320,13 +320,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ linkedinUrl }),
     }),
-  searchJobs: (opts?: { limit?: number; timeRange?: JobTimeRange; roles?: string[] }) =>
+  searchJobs: (opts?: { limit?: number; timeRange?: JobTimeRange; roles?: string[]; force?: boolean }) =>
     request<SearchResult>("/api/jobs/search", {
       method: "POST",
       body: JSON.stringify({
         roles: opts?.roles,
         limit: opts?.limit,
         timeRange: opts?.timeRange,
+        force: opts?.force ?? false,
       }),
     }),
   hrWhatsApp: (opts?: { page?: number; pageSize?: number; q?: string }) =>

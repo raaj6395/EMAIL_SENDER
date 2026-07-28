@@ -35,27 +35,31 @@ func (s *Server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 		Roles     []string `json:"roles"`
 		Limit     int      `json:"limit"`
 		TimeRange string   `json:"timeRange"`
+		Force     bool     `json:"force"` // bypass the 6h rate limit for one run
 	}
 	// Body is optional; ignore decode errors so an empty body uses defaults.
 	_ = json.NewDecoder(r.Body).Decode(&in)
 
-	// Hard rate-limit: if a real run happened within the window, do NOT call the
-	// actor. Return the saved open list with blocked=true. Not overridable.
-	if last, ok := jobs.LastRunTime(s.cfg.JobsRunsPath); ok {
-		if retryAfter := jobRunWindow - time.Since(last); retryAfter > 0 {
-			open, err := jobs.LoadOpen(s.cfg.JobsOpenPath, s.cfg.JobsAppliedPath)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, "could not read jobs: "+err.Error())
+	// Rate-limit: if a real run happened within the window, do NOT call the actor
+	// — unless the caller explicitly forces a fresh run (the "Force search"
+	// escape hatch). A forced run still spends Apify credit and resets the window.
+	if !in.Force {
+		if last, ok := jobs.LastRunTime(s.cfg.JobsRunsPath); ok {
+			if retryAfter := jobRunWindow - time.Since(last); retryAfter > 0 {
+				open, err := jobs.LoadOpen(s.cfg.JobsOpenPath, s.cfg.JobsAppliedPath)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "could not read jobs: "+err.Error())
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{
+					"open":       open,
+					"added":      0,
+					"blocked":    true,
+					"retryAfter": int(retryAfter.Seconds()),
+					"lastRunAt":  last,
+				})
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{
-				"open":       open,
-				"added":      0,
-				"blocked":    true,
-				"retryAfter": int(retryAfter.Seconds()),
-				"lastRunAt":  last,
-			})
-			return
 		}
 	}
 
