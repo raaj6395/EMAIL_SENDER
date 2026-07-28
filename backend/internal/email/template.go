@@ -60,7 +60,7 @@ func Render(p *resume.Profile, in ComposeInput, attachmentName string, opts Rend
 
 	name := firstNonEmpty(p.Name, "")
 	subject := firstNonEmpty(strings.TrimSpace(opts.Subject), buildSubject(name, role, company))
-	paras := buildParagraphs(p, role, company, opts.CompanyLine)
+	paras := buildParagraphs(p, in.Track, role, company, opts.CompanyLine)
 	greet := greeting(in.RecipientName)
 
 	return Rendered{
@@ -109,16 +109,52 @@ const (
 	signatureTitle = "Software Engineer"
 )
 
+// ---- SDE-track (backend) template ----
+// The user's chosen backend-focused wording. Paragraphs 1, 2, and 4 are FIXED
+// (the experience, stack, metrics, and structure must never change). Only the
+// company name is substituted, and paragraph 3 (the "contribute to {Company}"
+// line) may be lightly AI-tailored, falling back to sdeCompanyPara.
+const (
+	// %s = target company (greeting handled separately).
+	sdeHookPara = "Building backend systems that scale from millions of records to production " +
+		"microservices is the kind of engineering work I enjoy most."
+
+	// FIXED — the concrete experience/stack/metrics. Never AI-touched.
+	sdeExperiencePara = "I'm a recent B.Tech graduate from MNNIT Allahabad with backend engineering " +
+		"internship experience at Carousell, where I worked on Golang microservices, gRPC APIs, " +
+		"PostgreSQL, Redis, and Prometheus/Grafana. I built high-performance background workers, " +
+		"optimized queries by up to 90%, and contributed to migrating production services from a " +
+		"Django monolith to Go-based microservices while maintaining client compatibility."
+
+	// %s = target company. AI-tweakable (para 3); default wording below.
+	sdeCompanyPara = "I enjoy solving distributed systems and backend engineering problems, and I'd " +
+		"welcome the opportunity to contribute to %s's engineering team."
+
+	sdeClosePara = "My resume is attached for your review. Thank you for your time, and I look forward " +
+		"to hearing from you."
+)
+
+// sdeDefaultCompanyLine is the fixed SDE-track "why this company" line used when
+// AI is off or its output is unusable.
+func sdeDefaultCompanyLine(company string) string {
+	return fmt.Sprintf(sdeCompanyPara, company)
+}
+
 // DefaultCompanyLine is the fixed, safe "why this company" paragraph used when
 // AI is off or its output is unusable.
 func DefaultCompanyLine(company string) string {
 	return fmt.Sprintf(templateCompanyPara, company)
 }
 
-// buildParagraphs assembles the body from the fixed template, substituting the
-// target company/role. Only the company paragraph may be AI-supplied (falling
-// back to the template's own wording when empty).
-func buildParagraphs(p *resume.Profile, role, company, companyLine string) []string {
+// buildParagraphs assembles the body for the given track. Only paragraph 3 (the
+// "why this company" line) may be AI-supplied; everything else is fixed template
+// wording. The SDE track uses the backend-focused body; other tracks use the
+// general template.
+func buildParagraphs(p *resume.Profile, track, role, company, companyLine string) []string {
+	if track == "sd" {
+		return buildSDEParagraphs(company, companyLine)
+	}
+
 	// "I am Ankit Raj" when a name exists, else just "I am".
 	iam := "I am"
 	if n := strings.TrimSpace(p.Name); n != "" {
@@ -139,6 +175,17 @@ func buildParagraphs(p *resume.Profile, role, company, companyLine string) []str
 
 	// 4) Close (FIXED).
 	return []string{intro, project, companyPara, templateClosePara}
+}
+
+// buildSDEParagraphs builds the backend-focused SDE body. Paragraphs 1, 2, and 4
+// are fixed (hook, experience/stack/metrics, close); paragraph 3 is AI-tweakable
+// with a company-name default.
+func buildSDEParagraphs(company, companyLine string) []string {
+	companyPara := strings.TrimSpace(companyLine)
+	if companyPara == "" {
+		companyPara = sdeDefaultCompanyLine(company)
+	}
+	return []string{sdeHookPara, sdeExperiencePara, companyPara, sdeClosePara}
 }
 
 func buildPlainText(p *resume.Profile, greet string, paras []string) string {
