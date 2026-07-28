@@ -120,7 +120,7 @@ const (
 		"microservices is the kind of engineering work I enjoy most."
 
 	// FIXED — the concrete experience/stack/metrics. Never AI-touched.
-	sdeExperiencePara = "I'm a recent B.Tech graduate from MNNIT Allahabad with backend engineering " +
+	sdeExperiencePara = "I'm a recent B.Tech graduate (2026 Batch) from MNNIT Allahabad with backend engineering " +
 		"internship experience at Carousell, where I worked on Golang microservices, gRPC APIs, " +
 		"PostgreSQL, Redis, and Prometheus/Grafana. I built high-performance background workers, " +
 		"optimized queries by up to 90%, and contributed to migrating production services from a " +
