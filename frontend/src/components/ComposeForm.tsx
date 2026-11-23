@@ -2,7 +2,12 @@
 
 import { ComposeInput, Track } from "@/lib/api";
 import { guessCompany, guessFirstName } from "@/lib/guess";
-import { Button, Card, Field, Input } from "./ui";
+import { Button, Card, Field, Input, Segmented } from "./ui";
+
+export const TRACK_OPTIONS: { value: Track; label: string }[] = [
+  { value: "sd", label: "SDE" },
+  { value: "ai", label: "AI" },
+];
 
 export function ComposeForm({
   input,
@@ -29,8 +34,7 @@ export function ComposeForm({
   const companyValid = input.company.trim().length > 0;
   const canPreview = emailValid && companyValid;
 
-  // When the email changes, auto-suggest company + first name — but only into
-  // fields the user hasn't already filled, so we never overwrite their input.
+  // Auto-suggest company and first name from the email, only into empty fields.
   const handleEmailChange = (email: string) => {
     const next: ComposeInput = { ...input, recipientEmail: email };
     if (!input.company.trim()) {
@@ -52,37 +56,22 @@ export function ComposeForm({
         label="Profile"
         hint={
           track === "ai"
-            ? "Uses your AI resume + AI profile, tailored for AI/ML roles."
-            : "Uses your SDE resume + SDE profile, tailored for software-engineering roles."
+            ? "AI resume and AI profile, tailored for AI and ML roles"
+            : "SDE resume and SDE profile, tailored for software engineering roles"
         }
       >
         <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)]">
-            {(["sd", "ai"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => onTrackChange(t)}
-                className={`px-4 py-1.5 text-sm font-medium transition ${
-                  track === t
-                    ? "bg-[var(--accent)] text-white"
-                    : "bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--fg)]"
-                }`}
-              >
-                {t === "sd" ? "SDE" : "AI"}
-              </button>
-            ))}
-          </div>
+          <Segmented value={track} options={TRACK_OPTIONS} onChange={onTrackChange} />
           {!resumeReady && (
-            <span className="text-xs text-[var(--warning-fg)]">
-              ⚠ No {track === "ai" ? "ai_resume.pdf" : "resume.pdf"} found for this profile.
+            <span className="text-[12px] text-[var(--warning-fg)]">
+              No {track === "ai" ? "AI" : "SDE"} resume yet. Drop one into Resumes
             </span>
           )}
         </div>
       </Field>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Field label="Recipient email" hint="Company & name are auto-suggested — edit if needed">
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <Field label="Recipient email" hint="Company and name are suggested from the address">
           <Input
             type="email"
             value={input.recipientEmail}
@@ -90,39 +79,30 @@ export function ComposeForm({
             placeholder="priya@carousell.com"
           />
         </Field>
-        <Field label="Company name">
-          <Input
-            value={input.company}
-            onChange={(e) => onChange({ ...input, company: e.target.value })}
-            placeholder="Carousell"
-          />
+        <Field label="Company">
+          <Input value={input.company} onChange={(e) => onChange({ ...input, company: e.target.value })} placeholder="Carousell" />
         </Field>
-      </div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Field label="Recipient name (optional)" hint="Used in the greeting: “Hi {name},”">
+        <Field label="Recipient name" hint="Optional. Used in the greeting">
           <Input
             value={input.recipientName ?? ""}
             onChange={(e) => onChange({ ...input, recipientName: e.target.value })}
             placeholder="Priya"
           />
         </Field>
-        <Field label="Role (optional)" hint="Overrides your target role for this email only">
+        <Field label="Role" hint="Optional. Overrides your target role for this email">
           <Input
             value={input.role ?? ""}
             onChange={(e) => onChange({ ...input, role: e.target.value })}
-            placeholder="Senior Backend Engineer"
+            placeholder="Backend Engineer"
           />
         </Field>
       </div>
-      <div className="mt-5 flex items-center gap-3">
+
+      <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button onClick={onPreview} disabled={!canPreview} loading={loading}>
           Preview email
         </Button>
-        {!canPreview && (
-          <span className="text-xs text-[var(--muted)]">
-            Enter a valid email and company to preview.
-          </span>
-        )}
+        {!canPreview && <span className="text-[12px] text-[var(--subtle)]">Needs a valid email and a company</span>}
       </div>
     </Card>
   );

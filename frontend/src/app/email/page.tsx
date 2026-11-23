@@ -3,30 +3,29 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HRContact, api, setComposePrefill } from "@/lib/api";
-import { Button, Card, SectionHeader } from "@/components/ui";
-import { HRPager, HRToolbar, RankBadge, SentSection, useHRContacts } from "@/components/hr";
+import { Button, Card, Notice, Page, SectionHeader } from "@/components/ui";
+import { ContactRow, HRPager, HRToolbar, RankBadge, RowList, SentSection, useHRContacts } from "@/components/hr";
+import { EmptyRow } from "@/components/ui";
 
 /** One email-contact row: details + a button that prefills the compose form. */
 function EmailRow({ contact, onCompose }: { contact: HRContact; onCompose: (c: HRContact) => void }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-sm">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{contact.name || "(no name)"}</span>
-          <RankBadge rank={contact.rank} />
-        </div>
-        <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
-          {[contact.company, contact.role].filter(Boolean).join(" · ")}
-        </div>
-        <div className="mt-0.5 truncate font-mono text-xs text-[var(--muted)]">{contact.email}</div>
+    <ContactRow
+      actions={
+        <Button size="sm" onClick={() => onCompose(contact)}>
+          Compose
+        </Button>
+      }
+    >
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <span className="text-[14px] font-medium">{contact.name || "No name"}</span>
+        <RankBadge rank={contact.rank} />
       </div>
-      <button
-        onClick={() => onCompose(contact)}
-        className="shrink-0 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition hover:opacity-90"
-      >
-        Compose email →
-      </button>
-    </div>
+      <div className="mt-0.5 truncate text-[13px] text-[var(--muted)]">
+        {[contact.company, contact.role].filter(Boolean).join(" · ")}
+      </div>
+      <div className="mt-0.5 truncate font-mono text-[12px] text-[var(--subtle)]">{contact.email}</div>
+    </ContactRow>
   );
 }
 
@@ -78,17 +77,17 @@ export default function EmailHRPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+    <Page>
       <SectionHeader
         title="Email HR"
-        subtitle="HR contacts with email addresses, most important companies first. Compose email opens the sender with this recipient pre-filled — then Preview & Send as usual (AI-tailored, resume attached). Company ranking fills in as you browse; use Re-rank all to score everything at once."
+        subtitle="HR contacts with an email address, most important companies first. Compose opens the sender with the recipient filled in, then preview and send as usual. Ranks fill in as you browse, or Re-rank all scores everything at once"
       />
 
       {hrEnabled === false ? (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-3 text-sm text-[var(--warning-fg)]">
-          No HR data found. Place your spreadsheet at{" "}
-          <span className="font-mono">backend/data/HR DATA (1).xlsx</span> and restart the backend.
-        </div>
+        <Notice tone="warning">
+          No HR data found. Put your spreadsheet at{" "}
+          <span className="font-mono">backend/data/HR DATA (1).xlsx</span> and restart the backend
+        </Notice>
       ) : (
         <Card title="Email contacts">
           <HRToolbar
@@ -96,36 +95,32 @@ export default function EmailHRPage() {
             setQ={setQ}
             total={total}
             loading={loading}
-            placeholder="Search company, name, role, email…"
+            placeholder="Search company, name, role or email"
             right={
-              <Button variant="secondary" onClick={handleRerank} loading={reranking}>
-                {reranking ? "Ranking…" : "Re-rank all"}
+              <Button variant="secondary" size="sm" onClick={handleRerank} loading={reranking}>
+                {reranking ? "Ranking" : "Re-rank all"}
               </Button>
             }
           />
 
           {error && (
-            <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger-fg)]">
+            <Notice tone="danger" className="mb-4">
               {error}
-            </div>
+            </Notice>
           )}
 
-          <div className="space-y-3">
+          <RowList>
             {contacts.map((c, i) => (
               <EmailRow key={`${c.email}-${i}`} contact={c} onCompose={handleCompose} />
             ))}
-            {!loading && contacts.length === 0 && !error && (
-              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
-                No matching contacts.
-              </div>
-            )}
-          </div>
+          </RowList>
+          {!loading && contacts.length === 0 && !error && <EmptyRow>No matching contacts</EmptyRow>}
 
           <HRPager page={page} totalPages={totalPages} loading={loading} goto={goto} />
 
           <SentSection sent={sent} />
         </Card>
       )}
-    </main>
+    </Page>
   );
 }

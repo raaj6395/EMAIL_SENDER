@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { ApiError, HRContact, api } from "@/lib/api";
-import { Button, Card, SectionHeader, Textarea, Toast } from "@/components/ui";
-import { HRPager, HRToolbar, RankBadge, SentSection, useHRContacts } from "@/components/hr";
+import { Alerts, Button, Card, EmptyRow, Notice, Page, SectionHeader, Textarea, Toast, buttonClass } from "@/components/ui";
+import { ContactRow, HRPager, HRToolbar, RankBadge, RowList, SentSection, useHRContacts } from "@/components/hr";
+import { IconExternal } from "@/components/icons";
 
 // Default outreach message. {name} and {company} are filled per contact.
 const DEFAULT_TEMPLATE = `Hi {name},
@@ -53,20 +54,12 @@ function WhatsAppRow({
     : "";
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{contact.name || "(no name)"}</span>
-            <RankBadge rank={contact.rank} />
-          </div>
-          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
-            {[contact.company, contact.role].filter(Boolean).join(" · ")} · {contact.phone}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="secondary" onClick={() => setOpen((o) => !o)}>
-            {open ? "Hide" : "Edit"}
+    <div>
+      <ContactRow
+        actions={
+          <>
+          <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)}>
+            {open ? "Done" : "Edit message"}
           </Button>
           <a
             href={!blocked && waLink ? waLink : undefined}
@@ -75,24 +68,31 @@ function WhatsAppRow({
             aria-disabled={blocked || !waLink}
             onClick={(e) => {
               if (blocked || !waLink) {
-                e.preventDefault(); // rate-limited or no phone → don't open/record
+                e.preventDefault(); // rate-limited or no phone: don't open or record
                 return;
               }
               onSent(contact);
             }}
-            className={`inline-flex items-center gap-1.5 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium text-white transition ${
-              !blocked && waLink
-                ? "bg-[var(--success)] hover:opacity-90"
-                : "pointer-events-none bg-[var(--success)]/40"
-            }`}
+            className={buttonClass("primary", "sm")}
           >
-            Send on WhatsApp ↗
+            Open in WhatsApp
+            <IconExternal size={14} />
           </a>
+          </>
+        }
+      >
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <span className="text-[14px] font-medium">{contact.name || "No name"}</span>
+          <RankBadge rank={contact.rank} />
         </div>
-      </div>
+        <div className="mt-0.5 truncate text-[13px] text-[var(--muted)]">
+          {[contact.company, contact.role].filter(Boolean).join(" · ")}
+        </div>
+        <div className="mt-0.5 font-mono text-[12px] text-[var(--subtle)]">{contact.phone}</div>
+      </ContactRow>
 
       {open && (
-        <div className="mt-3">
+        <div className="px-4 pb-4">
           <Textarea
             value={msg}
             onChange={(e) => {
@@ -101,9 +101,7 @@ function WhatsAppRow({
             }}
             rows={4}
           />
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            This opens WhatsApp with the message pre-filled — you still press send there.
-          </p>
+          <p className="mt-2 text-[12px] text-[var(--subtle)]">Opens WhatsApp with this message filled in. You still press send there</p>
         </div>
       )}
     </div>
@@ -142,7 +140,7 @@ export default function WhatsAppPage() {
         key: c.waPhone,
       });
       if (res.rate) setRate(res.rate); // starts the cooldown
-      setToast(`Moved ${c.name || c.company} to Sent.`);
+      setToast(`Moved ${c.name || c.company} to Sent`);
       reload();
     } catch (e) {
       // The server blocks a too-fast/over-cap send with a 429 + message.
@@ -152,65 +150,53 @@ export default function WhatsAppPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+    <Page>
       <SectionHeader
-        title="WhatsApp Outreach"
-        subtitle="HR contacts with phone numbers, most important companies first. Send on WhatsApp opens a chat with your message pre-filled — name and company included."
+        title="WhatsApp"
+        subtitle="HR contacts with a phone number, most important companies first. Each opens a WhatsApp chat with your message filled in, name and company included"
       />
 
-      {toast && (
-        <div className="mb-5">
-          <Toast kind="info" message={toast} onClose={() => setToast(null)} />
-        </div>
-      )}
+      <Alerts>{toast && <Toast kind="info" message={toast} onClose={() => setToast(null)} />}</Alerts>
 
       {hrEnabled === false ? (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-3 text-sm text-[var(--warning-fg)]">
-          No HR data found. Place your spreadsheet at{" "}
-          <span className="font-mono">backend/data/HR DATA (1).xlsx</span> and restart the backend.
-        </div>
+        <Notice tone="warning">
+          No HR data found. Put your spreadsheet at{" "}
+          <span className="font-mono">backend/data/HR DATA (1).xlsx</span> and restart the backend
+        </Notice>
       ) : (
         <Card title="Message template">
           <Textarea
             value={template}
             onChange={(e) => setTemplate(e.target.value)}
-            rows={3}
-            className="mb-1"
+            rows={6}
           />
-          <p className="text-xs text-[var(--muted)]">
-            Use <span className="font-mono">{"{name}"}</span> and{" "}
-            <span className="font-mono">{"{company}"}</span> — they’re filled per contact. Edit any
-            single message before sending with its <span className="font-medium">Edit</span> button.
+          <p className="mt-2 text-[12px] leading-4 text-[var(--subtle)]">
+            <span className="font-mono">{"{name}"}</span> and <span className="font-mono">{"{company}"}</span> are filled
+            per contact. Edit message changes one contact only
           </p>
 
-          <div className="mt-4">
+          <div className="mt-6">
             {/* Send-rate guard: a rolling 6-hour cap keeps you under WhatsApp's
                 spam radar. No per-message cooldown — send back-to-back until the
                 cap is reached. */}
             {rate && (
-              <div
-                className={`mb-3 rounded-[var(--radius-md)] border px-3 py-2 text-sm ${
-                  capReached
-                    ? "border-[var(--danger)]/40 bg-[var(--danger-soft)] text-[var(--danger-fg)]"
-                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"
-                }`}
-              >
+              <Notice tone={capReached ? "danger" : "neutral"} className="mb-4">
                 {capReached ? (
                   <>
-                    <strong>
-                      Limit reached ({rate.windowCap} in {rate.windowHours}h)
-                    </strong>
-                    . Pause ~{Math.ceil(rate.resetIn / 60)} min so your number doesn’t get flagged.
+                    <span className="text-[var(--fg)]">
+                      Limit reached, {rate.windowCap} in {rate.windowHours}h
+                    </span>
+                    . Wait about {Math.ceil(rate.resetIn / 60)} min so your number is not flagged
                   </>
                 ) : (
                   <>
-                    <strong>
-                      {rate.sentInWindow}/{rate.windowCap}
-                    </strong>{" "}
-                    sent in the last {rate.windowHours}h. Send freely until the cap.
+                    <span className="font-mono text-[var(--fg)]">
+                      {rate.sentInWindow} / {rate.windowCap}
+                    </span>{" "}
+                    sent in the last {rate.windowHours}h. Send freely until the cap
                   </>
                 )}
-              </div>
+              </Notice>
             )}
 
             <HRToolbar
@@ -218,16 +204,16 @@ export default function WhatsAppPage() {
               setQ={setQ}
               total={total}
               loading={loading}
-              placeholder="Search company, name, role…"
+              placeholder="Search company, name or role"
             />
 
             {error && (
-              <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger-fg)]">
+              <Notice tone="danger" className="mb-4">
                 {error}
-              </div>
+              </Notice>
             )}
 
-            <div className="space-y-3">
+            <RowList>
               {contacts.map((c, i) => (
                 <WhatsAppRow
                   key={`${c.waPhone}-${i}`}
@@ -237,12 +223,8 @@ export default function WhatsAppPage() {
                   blocked={blocked}
                 />
               ))}
-              {!loading && contacts.length === 0 && !error && (
-                <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
-                  No matching contacts.
-                </div>
-              )}
-            </div>
+            </RowList>
+            {!loading && contacts.length === 0 && !error && <EmptyRow>No matching contacts</EmptyRow>}
 
             <HRPager page={page} totalPages={totalPages} loading={loading} goto={goto} />
 
@@ -250,6 +232,6 @@ export default function WhatsAppPage() {
           </div>
         </Card>
       )}
-    </main>
+    </Page>
   );
 }

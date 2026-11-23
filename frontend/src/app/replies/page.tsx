@@ -3,23 +3,24 @@
 import { useEffect, useState } from "react";
 import { ApiError, InboxReply, api } from "@/lib/api";
 import {
+  Alerts,
   Badge,
   Button,
   Card,
   EmptyState,
+  Page,
+  Postmark,
   SectionHeader,
   Select,
+  SubHeading,
   Textarea,
   Toast,
 } from "@/components/ui";
+import { RowList } from "@/components/hr";
+import { IconInbox, IconLock } from "@/components/icons";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
 
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
 function formatDay(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
@@ -65,40 +66,40 @@ function NeedsReplyCard({
   };
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-[var(--shadow-sm)]">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-5 shadow-[var(--shadow-sm)]">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-[var(--fg)]">{reply.fromName || reply.fromEmail}</span>
+            <span className="text-[14px] font-medium text-[var(--fg)]">{reply.fromName || reply.fromEmail}</span>
             <Badge tone={categoryTone[reply.category]}>{categoryLabel[reply.category]}</Badge>
           </div>
-          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
-            {reply.subject} · {reply.fromEmail}
+          <div className="mt-0.5 truncate text-[13px] text-[var(--muted)]">
+            {reply.subject} · <span className="font-mono text-[12px]">{reply.fromEmail}</span>
           </div>
         </div>
-        <span className="shrink-0 text-xs text-[var(--muted)]">{formatWhen(reply.receivedAt)}</span>
+        <Postmark iso={reply.receivedAt} />
       </div>
 
-      {reply.reason && <p className="mt-2 text-xs text-[var(--muted)]"><span className="font-medium">AI:</span> {reply.reason}</p>}
+      {reply.reason && <p className="mt-3 text-[13px] leading-5 text-[var(--muted)]">{reply.reason}</p>}
 
       <button
         onClick={() => setShowMsg((v) => !v)}
-        className="mt-2 text-xs font-medium text-[var(--accent)] hover:underline"
+        className="mt-2 text-[13px] text-[var(--fg)] underline decoration-[var(--border-strong)] underline-offset-4 hover:decoration-[var(--fg)]"
       >
         {showMsg ? "Hide their message" : "Show their message"}
       </button>
       {showMsg && (
-        <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-3 text-xs text-[var(--muted)]">
-          {reply.body || "(no text content)"}
+        <pre className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-3 font-sans text-[13px] leading-5 text-[var(--muted)]">
+          {reply.body || "No text content"}
         </pre>
       )}
 
-      <div className="mt-3">
-        <label className="mb-1.5 block text-[13px] font-medium text-[var(--fg)]">Your reply</label>
+      <div className="mt-4">
+        <label className="mb-2 block text-[13px] font-medium text-[var(--fg)]">Your reply</label>
         <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} />
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <Button onClick={send} loading={sending} disabled={!draft.trim()}>
           Send reply
         </Button>
@@ -133,7 +134,7 @@ export default function RepliesPage() {
       setReplies(r.replies ?? []);
       setToast({
         kind: "info",
-        message: `Scanned ${r.checked} recent emails — ${r.matched} were replies to your outreach.`,
+        message: `Scanned ${r.checked} recent emails. ${r.matched} were replies to your outreach`,
       });
     } catch (e) {
       setToast({ kind: "error", message: errMsg(e) });
@@ -146,7 +147,7 @@ export default function RepliesPage() {
     try {
       const r = await api.replySend(messageId, body);
       setReplies(r.replies ?? []);
-      setToast({ kind: "success", message: "Reply sent ✓" });
+      setToast({ kind: "success", message: "Reply sent" });
     } catch (e) {
       setToast({ kind: "error", message: errMsg(e) });
     }
@@ -166,133 +167,92 @@ export default function RepliesPage() {
   const noAction = replies.filter((r) => r.status === "no_action" || r.status === "dismissed");
   const replied = replies.filter((r) => r.status === "replied");
 
+  const quietRow = (r: InboxReply, note: string, tag: React.ReactNode) => (
+    <div key={r.messageId} className="flex items-center justify-between gap-4 px-4 py-3">
+      <div className="min-w-0">
+        <div className="truncate text-[14px] font-medium">{r.fromName || r.fromEmail}</div>
+        {note && <div className="mt-0.5 truncate text-[13px] text-[var(--muted)]">{note}</div>}
+      </div>
+      {tag}
+    </div>
+  );
+
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+    <Page>
       <SectionHeader
         title="Replies"
-        subtitle="Reads recent replies to your outreach and drafts responses with AI. Rejections are set aside; “check back later” replies become follow-up reminders."
+        subtitle="Reads recent replies to your outreach and drafts a response for each. Rejections are set aside, and check-back-later replies become follow-up reminders"
         action={
-          <div className="flex items-center gap-2">
+          <>
             <Select value={limit} onChange={(e) => setLimit(Number(e.target.value))} disabled={checking} className="w-auto">
               <option value={20}>Last 20</option>
               <option value={40}>Last 40</option>
               <option value={60}>Last 60</option>
             </Select>
             <Button onClick={check} loading={checking} disabled={inboxEnabled === false}>
-              {checking ? "Checking…" : "Check inbox"}
+              {checking ? "Checking" : "Check inbox"}
             </Button>
-          </div>
+          </>
         }
       />
 
-      {toast && (
-        <div className="mb-5">
-          <Toast kind={toast.kind} message={toast.message} onClose={() => setToast(null)} />
-        </div>
-      )}
+      <Alerts>{toast && <Toast kind={toast.kind} message={toast.message} onClose={() => setToast(null)} />}</Alerts>
 
       {inboxEnabled === false ? (
         <Card>
-          <EmptyState icon="🔒" title="Inbox reading needs your Gmail credentials">
-            Set <span className="font-mono">GMAIL_USER</span> and{" "}
-            <span className="font-mono">GMAIL_APP_PASSWORD</span> in{" "}
-            <span className="font-mono">backend/.env</span>, then restart the backend. The same App
-            Password used for sending also reads your inbox (read-only).
+          <EmptyState icon={<IconLock size={20} />} title="Reading the inbox needs your Gmail credentials">
+            Set <span className="font-mono">GMAIL_USER</span> and <span className="font-mono">GMAIL_APP_PASSWORD</span> in{" "}
+            <span className="font-mono">backend/.env</span>, then restart the backend. The App Password used for sending
+            also reads your inbox, read-only
           </EmptyState>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {/* Needs reply */}
-          <div>
-            <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-              Needs reply{needsReply.length > 0 && ` · ${needsReply.length}`}
-            </h2>
+        <div className="space-y-8">
+          <section>
+            <SubHeading count={needsReply.length}>Needs reply</SubHeading>
             {needsReply.length === 0 ? (
-              <EmptyState icon="✅" title="No replies waiting">
-                Click <span className="font-medium">Check inbox</span> to scan for new replies to your
-                outreach.
+              <EmptyState icon={<IconInbox size={20} />} title="No replies waiting">
+                Check inbox scans for new replies to your outreach
               </EmptyState>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {needsReply.map((r) => (
                   <NeedsReplyCard key={r.messageId} reply={r} onSend={handleSend} onDismiss={handleDismiss} />
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Scheduled follow-ups */}
           {scheduled.length > 0 && (
-            <div>
-              <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-                Follow up later · {scheduled.length}
-              </h2>
-              <div className="space-y-2">
-                {scheduled.map((r) => (
-                  <div
-                    key={r.messageId}
-                    className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <span className="font-medium">{r.fromName || r.fromEmail}</span>
-                      <span className="ml-2 text-xs text-[var(--muted)]">{r.reason}</span>
-                    </div>
-                    {r.followUpAt && <Badge tone="warning">Follow up {formatDay(r.followUpAt)}</Badge>}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <section>
+              <SubHeading count={scheduled.length}>Follow up later</SubHeading>
+              <RowList>
+                {scheduled.map((r) =>
+                  quietRow(r, r.reason, r.followUpAt && <Postmark iso={r.followUpAt} label={formatDay(r.followUpAt)} />)
+                )}
+              </RowList>
+            </section>
           )}
 
-          {/* Replied */}
           {replied.length > 0 && (
-            <div>
-              <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-                Replied · {replied.length}
-              </h2>
-              <div className="space-y-2">
-                {replied.map((r) => (
-                  <div
-                    key={r.messageId}
-                    className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm"
-                  >
-                    <span className="min-w-0 truncate">
-                      <span className="font-medium">{r.fromName || r.fromEmail}</span>
-                      <span className="ml-2 text-xs text-[var(--muted)]">{r.subject}</span>
-                    </span>
-                    <Badge tone="success">Replied</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <section>
+              <SubHeading count={replied.length}>Replied</SubHeading>
+              <RowList>{replied.map((r) => quietRow(r, r.subject, <Badge tone="success">Replied</Badge>))}</RowList>
+            </section>
           )}
 
-          {/* No action */}
           {noAction.length > 0 && (
-            <div>
-              <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-                No action · {noAction.length}
-              </h2>
-              <div className="space-y-2">
-                {noAction.map((r) => (
-                  <div
-                    key={r.messageId}
-                    className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm opacity-75"
-                  >
-                    <span className="min-w-0 truncate">
-                      <span className="font-medium">{r.fromName || r.fromEmail}</span>
-                      <span className="ml-2 text-xs text-[var(--muted)]">{r.reason}</span>
-                    </span>
-                    <Badge tone={r.status === "dismissed" ? "neutral" : "danger"}>
-                      {r.status === "dismissed" ? "Dismissed" : "Not open"}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <section>
+              <SubHeading count={noAction.length}>No action</SubHeading>
+              <RowList>
+                {noAction.map((r) =>
+                  quietRow(r, r.reason, <Badge>{r.status === "dismissed" ? "Dismissed" : "Not open"}</Badge>)
+                )}
+              </RowList>
+            </section>
           )}
         </div>
       )}
-    </main>
+    </Page>
   );
 }

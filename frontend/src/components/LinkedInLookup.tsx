@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ApiError, LookupResult, api } from "@/lib/api";
-import { Button, Card, Field, Input } from "./ui";
+import { Button, Card, Field, Input, Notice } from "./ui";
 
 /** Found values passed up to auto-fill the compose form. */
 export type LookupFound = { email: string; name: string; company: string };
@@ -55,70 +55,58 @@ export function LinkedInLookup({ onFound }: { onFound: (f: LookupFound) => void 
   };
 
   return (
-    <Card title="Find email from LinkedIn" step={1}>
+    <Card title="Find an email from LinkedIn" step={1}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
-          <Field label="LinkedIn profile URL" hint="Paste a profile link; we’ll look up their email and fill the form below.">
+          <Field label="LinkedIn profile URL" hint="Paste a profile link to look up the email and fill the form below">
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && urlValid && !loading) handleFind();
               }}
-              placeholder="https://www.linkedin.com/in/username/"
+              placeholder="linkedin.com/in/username"
               disabled={loading}
             />
           </Field>
         </div>
-        <Button onClick={handleFind} disabled={!urlValid} loading={loading} className="sm:mb-[2px]">
-          {loading ? "Searching…" : "Find email"}
+        <Button onClick={handleFind} disabled={!urlValid} loading={loading} className="sm:mb-6">
+          {loading ? "Searching" : "Find email"}
         </Button>
       </div>
 
       {loading && (
-        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
-          Looking up the email — this can take <strong>1–2 minutes</strong> (the actor
-          scrapes the profile and verifies the address). Hang tight…
-        </div>
+        <Notice className="mt-4">
+          Looking up the email. This takes 1 to 2 minutes while the profile is read and the address verified
+        </Notice>
       )}
 
       {error && (
-        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger-fg)]">
+        <Notice tone="danger" className="mt-4">
           {error}
-        </div>
+        </Notice>
       )}
 
       {result && !result.found && !error && (
-        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning-fg)]">
-          No email found for this profile. Enter the recipient email manually below.
-        </div>
+        <Notice tone="warning" className="mt-4">
+          No email found for this profile. Type the recipient email below
+        </Notice>
       )}
 
       {result && result.found && (
-        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-3 text-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-[var(--success-fg)]">Found:</span>
-            <span className="font-mono">{result.email}</span>
-            {result.confidence && (
-              <span className="rounded-[var(--radius-full)] bg-[var(--elevated)] px-2 py-0.5 text-xs text-[var(--muted)]">
-                confidence {result.confidence}
-              </span>
-            )}
-            {result.status && (
-              <span className="rounded-[var(--radius-full)] bg-[var(--elevated)] px-2 py-0.5 text-xs text-[var(--muted)]">
-                {result.status}
-              </span>
-            )}
+        <Notice tone={isLowConfidence(result) ? "warning" : "success"} className="mt-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-mono text-[13px] text-[var(--fg)]">{result.email}</span>
+            {result.confidence && <span className="font-mono text-[12px] text-[var(--subtle)]">confidence {result.confidence}</span>}
+            {result.status && <span className="font-mono text-[12px] text-[var(--subtle)]">{result.status}</span>}
           </div>
-          <div className="mt-1 text-xs text-[var(--muted)]">
-            {[result.name, result.company].filter(Boolean).join(" · ") || "Filled into the compose form below."}
+          <div className="mt-0.5">
+            {[result.name, result.company].filter(Boolean).join(" · ") || "Filled into the compose form below"}
           </div>
           {isLowConfidence(result) && (
-            <div className="mt-2 text-xs font-medium text-[var(--warning-fg)]">
-              ⚠ This email looks low-confidence — double-check it before sending.
-            </div>
+            <div className="mt-1 text-[var(--warning-fg)]">Low confidence. Double-check this address before sending</div>
           )}
-        </div>
+        </Notice>
       )}
     </Card>
   );

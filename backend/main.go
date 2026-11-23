@@ -25,6 +25,7 @@ func main() {
 	}
 
 	srv := httpapi.New(cfg)
+	defer srv.Shutdown()
 
 	addr := ":" + cfg.Port
 	log.Printf("email-sender backend listening on %s", addr)
@@ -36,6 +37,7 @@ func main() {
 	log.Printf("  apify lookup: %v (actor %s)", cfg.HasLookup(), cfg.ApifyActorID)
 	log.Printf("  jobs search:  %v (actor %s)", cfg.HasJobs(), cfg.JobsActorID)
 	log.Printf("  hr outreach:  %v", cfg.HasHR())
+	log.Printf("  send windows: %s", srv.ScheduleSummary())
 
 	// Surface half-configured features so they're not silently broken.
 	for _, msg := range cfg.Warnings() {

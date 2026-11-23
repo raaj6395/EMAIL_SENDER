@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, Health, JobTimeRange, JobsState, api } from "@/lib/api";
 import { JobSearch } from "@/components/JobSearch";
-import { SectionHeader, Toast } from "@/components/ui";
+import { Alerts, Notice, Page, SectionHeader, Toast } from "@/components/ui";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
 
@@ -51,7 +51,7 @@ export default function JobsPage() {
         setToast({
           kind: "error",
           message:
-            "Cannot reach the backend at http://localhost:8080. Start it with: cd backend && go run .",
+            "Cannot reach the backend at http://localhost:8080. Start it with cd backend && go run .",
         });
       });
     refreshJobs();
@@ -72,17 +72,17 @@ export default function JobsPage() {
       if (res.blocked) {
         setToast({
           kind: "info",
-          message: `A search already ran recently. To protect your Apify credits, the job search runs at most once every 6 hours — showing your saved jobs. Try again in ~${formatDuration(res.retryAfter)}.`,
+          message: `A search ran recently. To protect your Apify credits it runs at most once every 6 hours, so these are your saved jobs. Try again in about ${formatDuration(res.retryAfter)}`,
         });
       } else if (res.added > 0) {
         setToast({
           kind: "success",
-          message: `Added ${res.added} new job${res.added === 1 ? "" : "s"}.`,
+          message: `Added ${res.added} new job${res.added === 1 ? "" : "s"}`,
         });
       } else {
         setToast({
           kind: "info",
-          message: "No new jobs since your last search.",
+          message: "No new jobs since your last search",
         });
       }
     } catch (e) {
@@ -108,23 +108,19 @@ export default function JobsPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+    <Page>
       <SectionHeader
-        title="Job Search"
-        subtitle="Latest fresher (0–1 yr) software jobs in India, AI-screened for eligibility. Clicking Apply opens the job on LinkedIn and moves it to your Applied list."
+        title="Job search"
+        subtitle="The latest fresher (0 to 1 year) software jobs in Bengaluru, Hyderabad, Pune and Delhi NCR, each screened for eligibility. Apply opens the job on LinkedIn and moves it to Applied"
       />
 
-      {toast && (
-        <div className="mb-5">
-          <Toast kind={toast.kind} message={toast.message} onClose={() => setToast(null)} />
-        </div>
-      )}
+      <Alerts>{toast && <Toast kind={toast.kind} message={toast.message} onClose={() => setToast(null)} />}</Alerts>
 
       {health && !health.jobsEnabled ? (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-3 text-sm text-[var(--warning-fg)]">
-          Job search isn’t configured. Set <span className="font-mono">APIFY_TOKEN</span> in{" "}
-          <span className="font-mono">backend/.env</span> and restart the backend.
-        </div>
+        <Notice tone="warning">
+          Job search is not set up. Set <span className="font-mono">APIFY_TOKEN</span> in{" "}
+          <span className="font-mono">backend/.env</span> and restart the backend
+        </Notice>
       ) : (
         <JobSearch
           jobs={jobs}
@@ -139,6 +135,6 @@ export default function JobsPage() {
           onTimeRangeChange={setTimeRange}
         />
       )}
-    </main>
+    </Page>
   );
 }

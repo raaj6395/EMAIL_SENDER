@@ -1,83 +1,28 @@
 "use client";
 
-import { Health, HistoryEntry } from "@/lib/api";
+import { HistoryEntry } from "@/lib/api";
 
-function Row({ ok, label, detail }: { ok: boolean; label: string; detail?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
-      <span className="flex items-center gap-2">
-        <span
-          className={`inline-block h-2 w-2 shrink-0 rounded-[var(--radius-full)] ${
-            ok ? "bg-[var(--success)]" : "bg-[var(--danger)]"
-          }`}
-        />
-        {label}
-      </span>
-      {detail && <span className="truncate text-xs text-[var(--muted)]">{detail}</span>}
-    </div>
-  );
-}
-
-/** Compact status readout for the dashboard sidebar. */
-export function StatusPanel({
-  health,
-  history,
-}: {
-  health: Health | null;
-  history: HistoryEntry[];
-}) {
+/** Send totals: three figures, sent in postmark ink. */
+export function StatusPanel({ history }: { history: HistoryEntry[] }) {
   const sent = history.filter((e) => e.status === "sent").length;
   const failed = history.length - sent;
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-sm">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-        Status
-      </h2>
-      <Row
-        ok={!!health?.hasResume}
-        label="Resume"
-        detail={health?.hasResume ? "attached" : "missing"}
-      />
-      <Row
-        ok={!!health?.hasCredentials}
-        label="Gmail"
-        detail={health?.gmailUser || (health?.hasCredentials ? "connected" : "not set")}
-      />
-      <Row
-        ok={!!health?.aiEnabled}
-        label="AI"
-        detail={health?.aiEnabled ? health.aiModel : "template only"}
-      />
-
-      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--border)] pt-3 text-center">
-        <Stat value={history.length} label="Total" />
-        <Stat value={sent} label="Sent" tone="green" />
-        <Stat value={failed} label="Failed" tone={failed ? "red" : undefined} />
-      </div>
+    <div className="grid grid-cols-3 divide-x divide-[var(--border)] rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] shadow-[var(--shadow-sm)]">
+      <Stat value={sent} label="Sent" accent />
+      <Stat value={failed} label="Failed" />
+      <Stat value={history.length} label="All time" />
     </div>
   );
 }
 
-function Stat({
-  value,
-  label,
-  tone,
-}: {
-  value: number;
-  label: string;
-  tone?: "green" | "red";
-}) {
-  const color =
-    tone === "green"
-      ? "text-[var(--success-fg)]"
-      : tone === "red"
-        ? "text-[var(--danger-fg)]"
-        : "text-[var(--fg)]";
+function Stat({ value, label, accent }: { value: number; label: string; accent?: boolean }) {
   return (
-    <div className="rounded-[var(--radius-md)] bg-[var(--surface)] py-2">
-      <div className={`text-lg font-bold ${color}`}>{value}</div>
-      <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">{label}</div>
+    <div className="px-4 py-4">
+      <div className="text-[13px] text-[var(--muted)]">{label}</div>
+      <div className={`mt-1 text-[28px] font-medium leading-none tabular-nums ${accent ? "text-[var(--accent)]" : "text-[var(--fg)]"}`}>
+        {value.toLocaleString()}
+      </div>
     </div>
   );
 }

@@ -63,7 +63,7 @@ func (s *Server) handleJobSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	found, err := jobs.Search(r.Context(), s.jobsConfig(), in.Roles, jobs.DefaultLocation, in.Limit, in.TimeRange)
+	found, err := jobs.Search(r.Context(), s.jobsConfig(), in.Roles, in.Limit, in.TimeRange)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return

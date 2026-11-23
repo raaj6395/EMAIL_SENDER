@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"emailsender/internal/email"
 	"emailsender/internal/inbox"
@@ -21,6 +22,7 @@ func (s *Server) smtpConfig() email.SMTPConfig {
 		Port:     s.cfg.SMTPPort,
 		Username: s.cfg.GmailUser,
 		Password: s.cfg.GmailAppPassword,
+		Timeout:  time.Duration(s.cfg.SMTPTimeoutSec) * time.Second,
 	}
 }
 

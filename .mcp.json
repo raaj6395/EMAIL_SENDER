@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "email-sender": {
+      "command": "./backend/bin/mcp",
+      "env": {
+        "BACKEND_URL": "http://localhost:8080"
+      }
+    }
+  }
+}

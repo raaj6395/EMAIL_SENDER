@@ -188,6 +188,11 @@ EMAIL_SENDER/
 │   │   ├── email/ai.go             # optional OpenAI subject/company-line tweaks
 │   │   ├── email/send.go           # go-mail SMTP send with attachment
 │   │   ├── email/history.go        # send log (JSON)
+│   │   ├── schedule/schedule.go    # weekly send windows + next-window math
+│   │   ├── batch/batch.go          # persisted, window-gated send queue
+│   │   ├── batch/store.go          # queue persistence (survives restarts)
+│   │   ├── targets/targets.go      # target companies: filter, cache, upsert
+│   │   ├── targets/ai.go           # AI company discovery + fresher-comp estimates
 │   │   ├── lookup/apify.go         # optional LinkedIn URL → email via Apify
 │   │   └── jobs/                   # optional Job Search
 │   │       ├── apify.go            # fetch fresher India jobs (server-side filters)
@@ -199,6 +204,7 @@ EMAIL_SENDER/
     └── src/
         ├── app/page.tsx            # Email Sender (the stepped flow)
         ├── app/jobs/page.tsx       # Job Search page
+        ├── app/targets/page.tsx    # Target Companies page
         ├── app/layout.tsx          # root layout + top NavBar
         ├── lib/api.ts              # typed backend client
         └── components/             # NavBar, JobSearch, ProfileEditor, ComposeForm, …
@@ -216,12 +222,27 @@ EMAIL_SENDER/
 | `PUT`  | `/api/profile` | Save edited profile |
 | `POST` | `/api/preview` | `{recipientEmail, company, role?}` → rendered email |
 | `POST` | `/api/send` | Same input → sends via Gmail, logs history |
+| `POST` | `/api/batch` | `{rows, track}` → add recipients to the scheduled queue → `{added, skipped, queue}` |
+| `GET`  | `/api/batch` | Queue + window status (what's waiting, when it sends next) |
+| `POST` | `/api/batch/pause` | Hold the queue (nothing sends, even in a window) |
+| `POST` | `/api/batch/resume` | Let the queue drain again |
+| `POST` | `/api/batch/cancel` | Drop everything still waiting (keeps the sent/failed log) |
+| `POST` | `/api/batch/clear` | Empty the queue entirely, including finished items |
+| `POST` | `/api/batch/send-now` | Drain the queue immediately, ignoring the windows and the cap |
+| `POST` | `/api/batch/send-now/cancel` | Return to the normal schedule |
+| `POST` | `/api/batch/retry-failed` | Re-queue failed recipients (never delivered → no duplicates) |
+| `GET`  | `/api/schedule` | Weekly send windows + `{open, nextWindowAt, opensInSec, timezone}` |
+| `PUT`  | `/api/schedule` | `{enabled, perWindowCap, windows[]}` → save the send schedule |
 | `GET`  | `/api/history` | List of past sends |
 | `POST` | `/api/digest` | Emails a summary of all sends to `DIGEST_TO` |
 | `POST` | `/api/lookup` | `{linkedinUrl}` → `{found, email, name, company, …}` via Apify |
 | `POST` | `/api/jobs/search` | Fetch + AI-screen fresher India jobs → `{open, added, blocked, retryAfter}`. Rate-limited to once/6h |
 | `GET`  | `/api/jobs` | `{open, applied, blocked, retryAfter}` — the saved job lists + rate-limit status |
 | `POST` | `/api/jobs/applied` | `{id}` → move a job from Open to Applied → `{open, applied}` |
+| `GET`  | `/api/targets` | Target companies filtered by `?minLPA=&categories=&q=` |
+| `POST` | `/api/targets/discover` | `{minLPA, categories, count}` → AI finds more companies, skipping known ones |
+| `POST` | `/api/targets/add` | `{name}` → AI-estimate one company's fresher comp and save it |
+| `POST` | `/api/targets/remove` | `{name}` → drop a company from the list |
 
 ---
 
@@ -290,6 +311,94 @@ APIFY_TOKEN=apify_api_...            # same token as the LinkedIn lookup
   `backend/data/jobs_open.json` and `jobs_applied.json`, so they survive restarts.
   Jobs are de-duped by id, and an applied job never re-appears in Open.
 
+## Target Companies (who to cold-email, by fresher pay)
+
+The **Target Companies** page answers "which companies should I actually go
+after?" — hypergrowth startups, product MNCs, and GCCs that pay freshers above a
+CTC floor you choose (default ₹12 LPA).
+
+**Why this isn't a job feed.** Indian job postings almost never publish salary.
+Measured against the LinkedIn job actor on 60 fresher SDE India roles: **only 8%
+had any salary field at all, and 3 were in INR** (one of them garbled). A
+">12 LPA" filter simply cannot be derived from postings — no scraper or job-board
+vendor changes that. What *is* stable and well-known is what a given **company**
+pays a fresher, so this page works at the company level instead.
+
+**How it's built.** There's no third-party comp API worth using here — Levels.fyi
+is enterprise-only, and Glassdoor/AmbitionBox have no public API and block
+scraping. So the list is generated from the model's own knowledge using your
+existing `OPENAI_API_KEY`, and cached to `backend/data/target_companies.json`.
+
+- **Find more companies** asks for 25 more matching your filters. Companies you
+  already have are sent as an exclusion list, so each run surfaces *new* names
+  rather than repeating the famous ones.
+- **Add a specific company** estimates one company you name (e.g. "Sprinklr").
+- Filter by comp floor, category (hypergrowth / MNC / GCC / Indian product /
+  fintech), or free text over name, tech, and city.
+- **Compose email →** jumps to the sender with that company pre-filled.
+- Results are cached, so browsing and filtering cost nothing after discovery.
+
+A company qualifies for a floor when the **midpoint** of its band clears it — a
+company at 18–30 LPA counts as a ~₹24 payer, not a ₹30 one.
+
+> ⚠️ Comp figures are **AI estimates of typical fresher CTC, not live market data
+> or offers**. They're good for deciding who to target; verify on Levels.fyi or
+> AmbitionBox before making an actual decision. Low-confidence estimates are
+> labelled as such in the UI.
+
+## Scheduled bulk send (send windows)
+
+Cold outreach that lands at 2am gets buried. **Bulk queue** on the main page lets
+you paste recipients any time, but they only go out during the **send windows**
+you configure — by default **Monday and Wednesday, 11:00–13:00** local time.
+
+**How it works**
+
+1. Paste recipients into **Bulk queue** (one per line: `email`, or
+   `email, Company, Name`) and hit **Add to queue**. Duplicates already in the
+   queue are ignored, and missing companies are guessed from the domain.
+2. If a window is open, sending starts right away. Otherwise the panel tells you
+   exactly when it will — *"12 waiting — the next send window opens Mon 11:00
+   (in 2d 3h)"*.
+3. Inside a window the queue drains **one email at a time with a random 0–20s
+   gap**, up to the **per-window cap** (default 40). Anything left rolls over to
+   the next window.
+
+**Configuring the schedule** — open the **Send schedule** card:
+
+- Add or remove windows (any day, any start/end time).
+- Set **max emails per window** (`0` = no limit, but a cap keeps Gmail from
+  seeing a burst of cold email).
+- Untick **"Only send during these windows"** to drain the queue immediately,
+  regardless of time — useful for an urgent one-off.
+
+Times are evaluated in the **server's local timezone** (shown on the card), and
+the schedule is saved to `backend/data/schedule.json`.
+
+**Persistence & controls**
+
+- The queue lives in `backend/data/send_queue.json`, so a backend restart
+  between windows loses nothing — a queue built on Friday still sends Monday.
+  **The backend must be running when the window opens** for anything to send.
+- **⚡ Send now** drains the queue immediately, ignoring both the windows and the
+  per-window cap — for when you don't want to wait for Monday. The override
+  clears itself once the queue empties, so a later paste obeys the schedule again.
+- **Pause queue** holds everything even inside a window; **Clear waiting** drops
+  what hasn't sent yet but keeps the sent/failed log.
+- **Retry N failed** re-queues failed recipients. A failed send never reached the
+  recipient, so retrying can't send a duplicate.
+
+**When sends fail.** Each send opens a fresh TLS connection to Gmail and uploads
+your resume, so a flaky connection can time out mid-send. The queue retries a
+transient failure up to **3 times** with a growing pause before giving up, and
+only counts *delivered* mail against the per-window cap — a network blip doesn't
+silently eat your window budget. Raise `SMTP_TIMEOUT_SEC` in `backend/.env` if
+timeouts persist. Error messages distinguish a network timeout ("could not reach
+Gmail…") from a genuine credential problem ("Gmail rejected the login…"), so you
+aren't sent chasing your App Password when the network is at fault.
+- Single sends (**Preview → Send**) are **not** affected by the schedule — they
+  go out immediately, as before.
+
 ## Can it tell if someone replied?
 
 **No — not in this version, and it's an honest limitation, not an oversight.**
@@ -310,8 +419,13 @@ the word and it can be added via the Gmail API (read-only inbox scope).
 ## Notes & limits
 
 - **Gmail sending limits:** ~500 emails/day for personal accounts. This tool is
-  built for targeted, manual sends — not bulk blasting (which hurts deliverability
-  and can get your account flagged).
+  built for targeted outreach — not bulk blasting (which hurts deliverability and
+  can get your account flagged). Bulk goes through the
+  [scheduled queue](#scheduled-bulk-send-send-windows), which paces sends and
+  caps how many leave per window for exactly that reason.
+- **The backend must be running** when a send window opens — the queue is drained
+  by the Go server, not by the browser. If your laptop is asleep at Mon 11:00,
+  the queue sends when the machine is next awake during a window.
 - **Deliverability:** cold emails can land in spam. The template keeps it short,
   specific, and value-first to maximize replies, but a warm intro always beats a
   cold email.

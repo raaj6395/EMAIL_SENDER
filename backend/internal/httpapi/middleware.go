@@ -30,6 +30,14 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
+// Flush forwards to the underlying writer so streamed responses (the email
+// check) reach the browser one line at a time.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // recoverer converts a panic in any handler into a 500 response instead of
 // crashing the whole server, logging the stack for debugging.
 func recoverer(next http.Handler) http.Handler {

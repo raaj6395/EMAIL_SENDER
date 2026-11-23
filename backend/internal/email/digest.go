@@ -73,5 +73,5 @@ func formatTime(t time.Time) string {
 // SendDigest builds and sends the digest to the given recipient.
 func SendDigest(cfg SMTPConfig, fromName, recipient string, entries []HistoryEntry) error {
 	rendered := BuildDigest(entries)
-	return sendNoAttachment(cfg, fromName, recipient, rendered)
+	return SendNoAttachment(cfg, fromName, recipient, rendered)
 }

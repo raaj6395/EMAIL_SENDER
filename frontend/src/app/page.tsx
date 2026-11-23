@@ -19,10 +19,13 @@ import { ProfileEditor } from "@/components/ProfileEditor";
 import { LinkedInLookup, LookupFound } from "@/components/LinkedInLookup";
 import { ComposeForm } from "@/components/ComposeForm";
 import { BulkSend } from "@/components/BulkSend";
+import { SendScheduleCard } from "@/components/SendSchedule";
 import { EmailPreview } from "@/components/EmailPreview";
 import { SendHistory } from "@/components/SendHistory";
 import { StatusPanel } from "@/components/StatusPanel";
-import { Badge, EmptyState, SectionHeader, StatusPill, Toast } from "@/components/ui";
+import { ResumeUpload } from "@/components/ResumeUpload";
+import { IconMail } from "@/components/icons";
+import { Alerts, EmptyState, Page, SectionHeader, StatusPill, Toast } from "@/components/ui";
 
 type ToastState = { kind: "success" | "error" | "info"; message: string } | null;
 
@@ -56,7 +59,7 @@ export default function Home() {
       setToast({
         kind: "error",
         message:
-          "Cannot reach the backend at http://localhost:8080. Start it with: cd backend && go run .",
+          "Cannot reach the backend at http://localhost:8080. Start it with cd backend && go run .",
       });
     }
   }, []);
@@ -88,7 +91,7 @@ export default function Home() {
         kind: "info",
         message: `Composing to ${prefill.input.recipientName || prefill.input.recipientEmail}${
           prefill.input.company ? ` at ${prefill.input.company}` : ""
-        }. Preview → Send when ready.`,
+        }. Preview, then send when ready`,
       });
     }
   }, [refreshHealth, refreshHistory]);
@@ -115,7 +118,7 @@ export default function Home() {
     try {
       const p = await api.parseResume(track);
       setProfile(p);
-      setToast({ kind: "info", message: `Parsed your ${track.toUpperCase()} resume. Review the fields, then save.` });
+      setToast({ kind: "info", message: `Filled from your ${track === "ai" ? "AI" : "SDE"} resume. Check the fields, then save` });
     } catch (e) {
       setToast({ kind: "error", message: errMsg(e) });
     } finally {
@@ -166,7 +169,7 @@ export default function Home() {
     try {
       const res = await api.send({ ...compose, track });
       const how = res.source === "ai-tweaked" ? "AI-tailored" : "template";
-      setToast({ kind: "success", message: `Sent ${how} email to ${res.sentTo} ✓` });
+      setToast({ kind: "success", message: `Sent the ${how} email to ${res.sentTo}` });
       setRendered(null);
       setCompose({ recipientEmail: "", recipientName: "", company: "", role: "" });
       // If this send originated from the Email HR page, move that contact to Sent.
@@ -189,7 +192,7 @@ export default function Home() {
       const res = await api.sendDigest();
       setToast({
         kind: "success",
-        message: `Digest of ${res.count} send${res.count === 1 ? "" : "s"} emailed to ${res.sentTo} ✓`,
+        message: `Digest of ${res.count} send${res.count === 1 ? "" : "s"} emailed to ${res.sentTo}`,
       });
     } catch (e) {
       setToast({ kind: "error", message: errMsg(e) });
@@ -210,35 +213,32 @@ export default function Home() {
     }));
   };
 
+  const resumeOn = track === "ai" ? !!health?.hasResumeAI : !!health?.hasResumeSD;
+
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+    <Page wide>
       <SectionHeader
-        title="Email Sender"
-        subtitle="Send a tailored resume email to any company through your Gmail."
+        title="Email sender"
+        subtitle="A tailored application email to one company, sent from your Gmail with the right resume attached"
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            {health?.aiEnabled && <Badge tone="accent">✨ AI · {health.aiModel}</Badge>}
-            <StatusPill
-              ok={track === "ai" ? !!health?.hasResumeAI : !!health?.hasResumeSD}
-              label={
-                (track === "ai" ? health?.hasResumeAI : health?.hasResumeSD)
-                  ? `${track === "ai" ? "AI" : "SDE"} resume`
-                  : `No ${track === "ai" ? "AI" : "SDE"} resume`
-              }
-            />
-            <StatusPill ok={!!health?.hasCredentials} label={health?.hasCredentials ? "Gmail connected" : "Gmail not set"} />
-          </div>
+          health && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <StatusPill ok={health.hasCredentials} label={health.hasCredentials ? health.gmailUser || "Gmail connected" : "Gmail not set"} />
+              <StatusPill ok={resumeOn} label={`${track === "ai" ? "AI" : "SDE"} resume ${resumeOn ? "on file" : "missing"}`} />
+              {health.aiEnabled && (
+                <span className="font-mono text-[12px] text-[var(--subtle)]">AI · {health.aiModel}</span>
+              )}
+            </div>
+          )
         }
       />
 
-      {/* Alerts */}
-      <div className="mb-5 space-y-3">
+      <Alerts>
         <SetupBanner health={health} />
         {toast && <Toast kind={toast.kind} message={toast.message} onClose={() => setToast(null)} />}
-      </div>
+      </Alerts>
 
-      {/* Profile (collapsible setup, full width) */}
-      <div className="mb-5">
+      <div className="mb-6">
         <ProfileEditor
           profile={profile}
           onChange={setProfile}
@@ -250,10 +250,8 @@ export default function Home() {
         />
       </div>
 
-      {/* Dashboard grid: workflow (left) + status & activity (right) */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* Main workflow column */}
-        <div className="space-y-5 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-6">
           {health?.lookupEnabled && <LinkedInLookup onFound={handleLookupFound} />}
           <ComposeForm
             input={compose}
@@ -266,7 +264,6 @@ export default function Home() {
             hasResumeSD={!!health?.hasResumeSD}
             hasResumeAI={!!health?.hasResumeAI}
           />
-          <BulkSend track={track} />
           {rendered ? (
             <EmailPreview
               rendered={rendered}
@@ -275,18 +272,26 @@ export default function Home() {
               onBack={() => setRendered(null)}
               onSend={handleSend}
               sending={sending}
+              step={health?.lookupEnabled ? 3 : 2}
+              track={track}
             />
           ) : (
-            <EmptyState icon="✉️" title="Your email preview will appear here">
-              Fill in the recipient and company, then <span className="font-medium">Preview email</span> to
-              review the exact message before sending.
+            <EmptyState icon={<IconMail size={20} />} title="The preview shows up here">
+              Add a recipient and company, then choose Preview email to read the exact message before it goes out
             </EmptyState>
           )}
+          <BulkSend track={track} />
+          <SendScheduleCard />
         </div>
 
-        {/* Side column: status + activity feed */}
-        <aside className="space-y-5">
-          <StatusPanel health={health} history={history} />
+        <aside className="min-w-0 space-y-6">
+          <ResumeUpload
+            track={track}
+            hasResumeSD={!!health?.hasResumeSD}
+            hasResumeAI={!!health?.hasResumeAI}
+            onUploaded={refreshHealth}
+          />
+          <StatusPanel history={history} />
           <SendHistory
             entries={history}
             digestEnabled={health?.digestEnabled ?? false}
@@ -297,9 +302,9 @@ export default function Home() {
         </aside>
       </div>
 
-      <footer className="mt-8 border-t border-[var(--border)] pt-5 text-center text-xs text-[var(--muted)]">
-        Sends through Gmail SMTP · Your resume and credentials stay on the backend.
+      <footer className="mt-12 border-t border-[var(--border)] pt-6 text-[12px] text-[var(--subtle)]">
+        Sends through Gmail SMTP. Your resumes and credentials stay on the backend
       </footer>
-    </main>
+    </Page>
   );
 }

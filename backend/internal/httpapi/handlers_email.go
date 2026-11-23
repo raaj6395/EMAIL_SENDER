@@ -131,9 +131,10 @@ func (s *Server) sendOneBatch(ctx context.Context, track string, it batch.Item) 
 	return sendErr
 }
 
-// handleBatchStart parses pasted rows and starts a paced bulk send. Only one
-// batch runs at a time.
-func (s *Server) handleBatchStart(w http.ResponseWriter, r *http.Request) {
+// handleQueueAdd parses pasted rows and adds them to the scheduled send queue.
+// Recipients can be queued at any time; the worker sends them during the next
+// open send window. Duplicates already in the queue are ignored.
+func (s *Server) handleQueueAdd(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Track string `json:"track"`
 		Rows  string `json:"rows"` // pasted text, one recipient per line
@@ -148,10 +149,6 @@ func (s *Server) handleBatchStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if s.batch.Running() {
-		writeError(w, http.StatusConflict, "a bulk send is already in progress — wait for it to finish or cancel it")
-		return
-	}
 
 	items := batch.ParseRows(in.Rows)
 	if len(items) == 0 {
@@ -159,33 +156,71 @@ func (s *Server) handleBatchStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.batch.Start(items, track, batchMaxGapSec, s.sendOneBatch) {
-		writeError(w, http.StatusConflict, "a bulk send is already in progress")
-		return
-	}
+	added := s.batch.Add(items, track)
+	snap := s.batch.Get()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"added":   added,
+		"skipped": len(items) - added,
+		"queue":   snap,
+	})
+}
+
+// handleQueueStatus returns the queue + scheduling state for polling.
+func (s *Server) handleQueueStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.batch.Get())
 }
 
-// handleBatchStatus returns the current/last batch progress for polling.
-func (s *Server) handleBatchStatus(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.batch.Get())
-}
-
-// handleBatchPause holds the queue before the next send (Stop).
-func (s *Server) handleBatchPause(w http.ResponseWriter, r *http.Request) {
+// handleQueuePause holds the queue — nothing sends even inside a window.
+func (s *Server) handleQueuePause(w http.ResponseWriter, r *http.Request) {
 	s.batch.Pause()
 	writeJSON(w, http.StatusOK, s.batch.Get())
 }
 
-// handleBatchResume continues a paused queue.
-func (s *Server) handleBatchResume(w http.ResponseWriter, r *http.Request) {
+// handleQueueResume lets the queue drain again during send windows.
+func (s *Server) handleQueueResume(w http.ResponseWriter, r *http.Request) {
 	s.batch.Resume()
 	writeJSON(w, http.StatusOK, s.batch.Get())
 }
 
-// handleBatchCancel aborts the batch; remaining items are skipped.
-func (s *Server) handleBatchCancel(w http.ResponseWriter, r *http.Request) {
-	s.batch.Cancel()
+// handleQueueClear drops everything still waiting, keeping the sent/failed log.
+func (s *Server) handleQueueClear(w http.ResponseWriter, r *http.Request) {
+	s.batch.Clear()
+	writeJSON(w, http.StatusOK, s.batch.Get())
+}
+
+// handleQueueSendNow drains the queue immediately, ignoring the send windows
+// and the per-window cap. The override clears itself once the queue empties.
+func (s *Server) handleQueueSendNow(w http.ResponseWriter, r *http.Request) {
+	if err := s.cfg.ValidateForSend("sd"); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	n := s.batch.SendNow()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"sending": n,
+		"queue":   s.batch.Get(),
+	})
+}
+
+// handleQueueSendNowCancel returns the queue to the normal schedule.
+func (s *Server) handleQueueSendNowCancel(w http.ResponseWriter, r *http.Request) {
+	s.batch.CancelSendNow()
+	writeJSON(w, http.StatusOK, s.batch.Get())
+}
+
+// handleQueueRetryFailed re-queues failed items. They were never delivered, so
+// this can't produce a duplicate email.
+func (s *Server) handleQueueRetryFailed(w http.ResponseWriter, r *http.Request) {
+	n := s.batch.RetryFailed()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"requeued": n,
+		"queue":    s.batch.Get(),
+	})
+}
+
+// handleQueueClearAll empties the queue including finished items.
+func (s *Server) handleQueueClearAll(w http.ResponseWriter, r *http.Request) {
+	s.batch.ClearAll()
 	writeJSON(w, http.StatusOK, s.batch.Get())
 }
 

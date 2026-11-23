@@ -1,34 +1,29 @@
 "use client";
 
 import { Health } from "@/lib/api";
-import { Toast } from "./ui";
+import { Notice } from "./ui";
 
+/** Shown only when something blocks sending. The header carries the ready state. */
 export function SetupBanner({ health }: { health: Health | null }) {
   if (!health) return null;
 
   const missing: string[] = [];
   if (!health.hasCredentials) {
-    missing.push(
-      "Gmail credentials not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD to backend/.env, then restart the backend."
-    );
+    missing.push("Add GMAIL_USER and GMAIL_APP_PASSWORD to backend/.env, then restart the backend");
   }
   if (!health.hasResume) {
-    missing.push("No resume found. Place your resume PDF at backend/data/resume.pdf.");
+    missing.push("Drop your SDE resume PDF into Resumes on the right");
   }
-
-  if (missing.length === 0) {
-    return (
-      <Toast
-        kind="success"
-        message={`Ready to send${health.gmailUser ? ` — sending as ${health.gmailUser}` : ""}. Resume and Gmail credentials detected.`}
-      />
-    );
-  }
+  if (missing.length === 0) return null;
 
   return (
-    <Toast
-      kind="error"
-      message={"Setup needed before you can send:\n• " + missing.join("\n• ")}
-    />
+    <Notice tone="danger">
+      <p className="font-medium text-[var(--fg)]">Setup needed before you can send</p>
+      <ul className="mt-1 list-disc space-y-0.5 pl-4">
+        {missing.map((m) => (
+          <li key={m}>{m}</li>
+        ))}
+      </ul>
+    </Notice>
   );
 }

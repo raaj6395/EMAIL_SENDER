@@ -7,116 +7,66 @@ import {
   JobsState,
   StoredJob,
 } from "@/lib/api";
-import { Button, Card } from "./ui";
+import { Badge, Button, Card, EmptyRow, Notice, Postmark, Select, SubHeading, buttonClass } from "./ui";
+import { ContactRow, RowList } from "./hr";
+import { IconExternal } from "./icons";
 
-const selectClass =
-  "rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 disabled:opacity-50";
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+/** Quiet attribute tag (experience, arrangement, type). */
+function Tag({ children }: { children: React.ReactNode }) {
+  return <span className="text-[12px] text-[var(--muted)]">{children}</span>;
 }
 
-/** Small rounded pill for a job attribute (experience, arrangement, etc.). */
-function Pill({ children }: { children: React.ReactNode }) {
+/** One open job, with an Apply link that also moves it to Applied. */
+function OpenJobRow({ job, onApply }: { job: StoredJob; onApply: (id: string) => void }) {
+  const eligible = job.verdict === "eligible";
+  const tags = [
+    job.experienceLevel && `${job.experienceLevel} yrs`,
+    job.workArrangement,
+    job.employmentType?.replace(/_/g, " "),
+  ].filter(Boolean) as string[];
   return (
-    <span className="rounded-[var(--radius-full)] bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--muted)]">
-      {children}
-    </span>
-  );
-}
-
-/** Green/amber verdict badge. "not" jobs are filtered out server-side. */
-function VerdictBadge({ verdict }: { verdict: StoredJob["verdict"] }) {
-  const eligible = verdict === "eligible";
-  return (
-    <span
-      className={`rounded-[var(--radius-full)] px-2 py-0.5 text-xs font-medium ${
-        eligible
-          ? "bg-[var(--success-soft)] text-[var(--success-fg)]"
-          : "bg-[var(--warning-soft)] text-[var(--warning-fg)]"
-      }`}
-    >
-      {eligible ? "Eligible" : "Maybe"}
-    </span>
-  );
-}
-
-/** One open job card, with an Apply link that also moves it to Applied. */
-function OpenJobRow({
-  job,
-  onApply,
-}: {
-  job: StoredJob;
-  onApply: (id: string) => void;
-}) {
-  return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--elevated)] p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate font-medium">{job.title}</div>
-          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
-            {[job.organization, job.location].filter(Boolean).join(" · ")}
-          </div>
-        </div>
+    <ContactRow
+      actions={
         <a
           href={job.url}
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => onApply(job.id)}
-          className="shrink-0 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+          className={buttonClass("primary", "sm")}
         >
-          Apply ↗
+          Apply
+          <IconExternal size={14} />
         </a>
+      }
+    >
+      <div className="truncate text-[14px] font-medium">{job.title}</div>
+      <div className="mt-0.5 truncate text-[13px] text-[var(--muted)]">
+        {[job.organization, job.location].filter(Boolean).join(" · ")}
       </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <VerdictBadge verdict={job.verdict} />
-        {job.experienceLevel && <Pill>{job.experienceLevel} yrs</Pill>}
-        {job.workArrangement && <Pill>{job.workArrangement}</Pill>}
-        {job.employmentType && <Pill>{job.employmentType.replace(/_/g, " ")}</Pill>}
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Badge tone={eligible ? "success" : "warning"}>{eligible ? "Eligible" : "Maybe"}</Badge>
+        {tags.map((t) => (
+          <Tag key={t}>{t}</Tag>
+        ))}
       </div>
-
-      {job.reason && (
-        <div className="mt-2 text-xs text-[var(--muted)]">
-          <span className="font-medium">AI:</span> {job.reason}
-        </div>
-      )}
-    </div>
+      {job.reason && <p className="mt-2 text-[13px] leading-5 text-[var(--muted)]">{job.reason}</p>}
+    </ContactRow>
   );
 }
 
-/** One applied job card (muted, with the applied timestamp). */
+/** One applied job, with its postmark. */
 function AppliedJobRow({ job }: { job: StoredJob }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm">
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 shrink-0 rounded-[var(--radius-full)] bg-[var(--success)]" />
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="truncate font-medium hover:underline"
-          >
-            {job.title}
-          </a>
-        </div>
-        <div className="mt-0.5 truncate pl-4 text-xs text-[var(--muted)]">
+        <a href={job.url} target="_blank" rel="noopener noreferrer" className="block truncate text-[14px] font-medium hover:underline">
+          {job.title}
+        </a>
+        <div className="mt-0.5 truncate text-[13px] text-[var(--muted)]">
           {[job.organization, job.location].filter(Boolean).join(" · ")}
         </div>
       </div>
-      {job.appliedAt && (
-        <span className="shrink-0 whitespace-nowrap text-xs text-[var(--muted)]">
-          {formatWhen(job.appliedAt)}
-        </span>
-      )}
+      {job.appliedAt && <Postmark iso={job.appliedAt} sent />}
     </div>
   );
 }
@@ -151,13 +101,13 @@ export function JobSearch({
 
   return (
     <Card
-      title="Job search — fresher software roles in India"
+      title="Fresher software roles"
       action={
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+          <label className="flex items-center gap-2 text-[13px] text-[var(--muted)]">
             <span className="hidden sm:inline">Posted</span>
-            <select
-              className={selectClass}
+            <Select
+              className="w-auto"
               value={timeRange}
               onChange={(e) => onTimeRangeChange(e.target.value as JobTimeRange)}
               disabled={loading}
@@ -167,12 +117,12 @@ export function JobSearch({
                   {t.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+          <label className="flex items-center gap-2 text-[13px] text-[var(--muted)]">
             <span className="hidden sm:inline">Show</span>
-            <select
-              className={selectClass}
+            <Select
+              className="w-auto"
               value={limit}
               onChange={(e) => onLimitChange(Number(e.target.value))}
               disabled={loading}
@@ -182,7 +132,7 @@ export function JobSearch({
                   {n} jobs
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <Button
             variant="primary"
@@ -192,12 +142,12 @@ export function JobSearch({
             title={
               blocked
                 ? `Runs at most once every 6 hours to protect Apify credits${
-                    retryLabel ? ` — try again in ~${retryLabel}` : ""
+                    retryLabel ? `. Try again in about ${retryLabel}` : ""
                   }`
                 : undefined
             }
           >
-            {loading && !blocked ? "Finding…" : "Find jobs"}
+            {loading && !blocked ? "Finding" : "Find jobs"}
           </Button>
           {blocked && (
             <Button
@@ -206,61 +156,48 @@ export function JobSearch({
               loading={loading}
               title="Ignore the 6-hour limit and run a fresh search now (spends Apify credit and resets the timer)"
             >
-              {loading ? "Forcing…" : "Force search"}
+              {loading ? "Searching" : "Force search"}
             </Button>
           )}
         </div>
       }
     >
       {blocked && (
-        <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning-fg)]">
-          To protect your Apify credits, the job search runs at most{" "}
-          <strong>once every 6 hours</strong>.
-          {retryLabel && <> Next search available in ~{retryLabel}.</>} Showing your
-          saved jobs below — or use <strong>Force search</strong> to run now anyway.
-        </div>
+        <Notice tone="warning" className="mb-4">
+          Search runs at most once every 6 hours to protect your Apify credits
+          {retryLabel && <>. Next search in about {retryLabel}</>}. Showing saved jobs, or use Force search to run now
+        </Notice>
       )}
 
       {loading && (
-        <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
-          Fetching the latest jobs and checking each one for eligibility — this can
-          take <strong>up to a minute</strong>. Hang tight…
-        </div>
+        <Notice className="mb-4">Fetching the latest jobs and checking each for eligibility. This takes up to a minute</Notice>
       )}
 
       {/* Open jobs */}
-      <div className="mb-2 text-sm font-medium">
-        Open jobs{open.length > 0 && <span className="text-[var(--muted)]"> · {open.length}</span>}
-      </div>
+      <SubHeading count={open.length}>Open</SubHeading>
       {open.length === 0 ? (
-        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--muted)]">
-          No open jobs yet — click <span className="font-medium">Find jobs</span> to
-          fetch eligible roles.
-        </div>
+        <EmptyRow>No open jobs yet. Find jobs fetches eligible roles</EmptyRow>
       ) : (
-        <div className="space-y-3">
+        <RowList>
           {open.map((job) => (
             <OpenJobRow key={job.id} job={job} onApply={onApply} />
           ))}
-        </div>
+        </RowList>
       )}
 
       {/* Applied jobs */}
-      <div className="mb-2 mt-6 text-sm font-medium">
-        Applied{applied.length > 0 && <span className="text-[var(--muted)]"> · {applied.length}</span>}
+      <div className="mt-8">
+        <SubHeading count={applied.length}>Applied</SubHeading>
+        {applied.length === 0 ? (
+          <p className="text-[13px] text-[var(--muted)]">Nothing applied yet. Apply opens the job on LinkedIn and moves it here</p>
+        ) : (
+          <RowList>
+            {applied.map((job) => (
+              <AppliedJobRow key={job.id} job={job} />
+            ))}
+          </RowList>
+        )}
       </div>
-      {applied.length === 0 ? (
-        <div className="text-sm text-[var(--muted)]">
-          Nothing applied yet. Clicking a job’s <span className="font-medium">Apply</span>{" "}
-          link opens it on LinkedIn and moves it here.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {applied.map((job) => (
-            <AppliedJobRow key={job.id} job={job} />
-          ))}
-        </div>
-      )}
     </Card>
   );
 }

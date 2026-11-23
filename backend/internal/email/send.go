@@ -1,7 +1,12 @@
 package email
 
 import (
+	"errors"
 	"fmt"
+	"log"
+	"net"
+	"strings"
+	"time"
 
 	"github.com/wneessen/go-mail"
 )
@@ -12,6 +17,83 @@ type SMTPConfig struct {
 	Port     int
 	Username string
 	Password string
+	// Timeout bounds a single dial+send attempt. Zero uses defaultTimeout —
+	// go-mail's own default (15s) is too tight on a home connection, where each
+	// send opens a fresh TLS connection and uploads a resume attachment.
+	Timeout time.Duration
+}
+
+// Send timing. Gmail over a residential link occasionally drops or stalls a
+// connection; a transient failure should not permanently burn a recipient, so
+// each send gets a few attempts with a growing pause between them.
+const (
+	defaultTimeout = 45 * time.Second
+	maxAttempts    = 3
+	retryBackoff   = 3 * time.Second
+)
+
+func (c SMTPConfig) timeout() time.Duration {
+	if c.Timeout > 0 {
+		return c.Timeout
+	}
+	return defaultTimeout
+}
+
+// isTransient reports whether an error is worth retrying: network timeouts,
+// refused/reset connections, and EOFs — as opposed to a rejected password or a
+// malformed address, where retrying just wastes time and re-hits Gmail.
+func isTransient(err error) bool {
+	if err == nil {
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	s := strings.ToLower(err.Error())
+	for _, frag := range []string{
+		"i/o timeout", "timeout", "connection reset", "connection refused",
+		"broken pipe", "eof", "no such host", "network is unreachable",
+		"temporary failure", "try again", "421", "450", "451", "452",
+	} {
+		if strings.Contains(s, frag) {
+			return true
+		}
+	}
+	return false
+}
+
+// isAuth reports whether the server rejected our credentials, which no amount
+// of retrying will fix.
+func isAuth(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	for _, frag := range []string{
+		"535", "534", "530", "authentication failed", "auth", "credentials",
+		"username and password not accepted",
+	} {
+		if strings.Contains(s, frag) {
+			return true
+		}
+	}
+	return false
+}
+
+// describeSendError turns a raw SMTP error into something that points at the
+// real cause. The old message blamed the App Password for everything, which
+// sent users chasing credentials when the actual problem was the network.
+func describeSendError(cfg SMTPConfig, err error) error {
+	switch {
+	case isAuth(err):
+		return fmt.Errorf("Gmail rejected the login — check GMAIL_APP_PASSWORD and that 2FA is on: %w", err)
+	case isTransient(err):
+		return fmt.Errorf("could not reach Gmail after %d attempts (network timeout) — check your connection or whether %s:%d is blocked: %w",
+			maxAttempts, cfg.Host, cfg.Port, err)
+	default:
+		return fmt.Errorf("failed to send via SMTP: %w", err)
+	}
 }
 
 // Send delivers the rendered email to recipient with the resume attached.
@@ -78,8 +160,9 @@ func joinSpace(ss []string) string {
 	return out
 }
 
-// sendNoAttachment delivers a rendered email with no file attachment (digests).
-func sendNoAttachment(cfg SMTPConfig, fromName, recipient string, r Rendered) error {
+// SendNoAttachment delivers a rendered email with no file attachment (digests,
+// and raw sends that opt out of the resume).
+func SendNoAttachment(cfg SMTPConfig, fromName, recipient string, r Rendered) error {
 	msg, err := buildMessage(cfg, fromName, recipient, r)
 	if err != nil {
 		return err
@@ -113,19 +196,43 @@ func buildMessage(cfg SMTPConfig, fromName, recipient string, r Rendered) (*mail
 	return msg, nil
 }
 
+// dialAndSend delivers one message, retrying transient network failures. Each
+// attempt uses a fresh client: after a timeout the old connection is in an
+// unknown state and reusing it tends to fail again immediately.
 func dialAndSend(cfg SMTPConfig, msg *mail.Msg) error {
-	client, err := mail.NewClient(cfg.Host,
-		mail.WithPort(cfg.Port),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithTLSPolicy(mail.TLSMandatory),
-		mail.WithUsername(cfg.Username),
-		mail.WithPassword(cfg.Password),
-	)
-	if err != nil {
-		return fmt.Errorf("could not create SMTP client: %w", err)
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		client, err := mail.NewClient(cfg.Host,
+			mail.WithPort(cfg.Port),
+			mail.WithSMTPAuth(mail.SMTPAuthPlain),
+			mail.WithTLSPolicy(mail.TLSMandatory),
+			mail.WithUsername(cfg.Username),
+			mail.WithPassword(cfg.Password),
+			mail.WithTimeout(cfg.timeout()),
+		)
+		if err != nil {
+			return fmt.Errorf("could not create SMTP client: %w", err)
+		}
+
+		err = client.DialAndSend(msg)
+		if err == nil {
+			if attempt > 1 {
+				log.Printf("smtp: send succeeded on attempt %d", attempt)
+			}
+			return nil
+		}
+		lastErr = err
+
+		// Credentials or a bad address won't improve on a retry.
+		if !isTransient(err) {
+			break
+		}
+		if attempt < maxAttempts {
+			log.Printf("smtp: attempt %d/%d failed (%v) — retrying in %s", attempt, maxAttempts, err, retryBackoff*time.Duration(attempt))
+			time.Sleep(retryBackoff * time.Duration(attempt)) // 3s, then 6s
+		}
 	}
-	if err := client.DialAndSend(msg); err != nil {
-		return fmt.Errorf("failed to send via SMTP (check Gmail App Password and that 2FA is enabled): %w", err)
-	}
-	return nil
+
+	return describeSendError(cfg, lastErr)
 }

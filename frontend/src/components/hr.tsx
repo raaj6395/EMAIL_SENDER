@@ -2,18 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, HRContact, HRPage, HRRateStatus, HRSentRecord } from "@/lib/api";
-import { Button, Input } from "./ui";
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { Button, Input, Postmark, SubHeading } from "./ui";
+import { IconChevronLeft, IconChevronRight, IconSearch } from "./icons";
 
 /**
  * useHRContacts loads one page of HR contacts (WhatsApp or Email) with debounced
@@ -86,18 +76,53 @@ export function HRToolbar({
 }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3">
-      <div className="min-w-[200px] flex-1">
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} />
-      </div>
-      <span className="text-sm text-[var(--muted)]">
-        {loading ? "Loading…" : `${total.toLocaleString()} contact${total === 1 ? "" : "s"}`}
+      <SearchInput value={q} onChange={setQ} placeholder={placeholder} />
+      <span className="font-mono text-[12px] text-[var(--subtle)]">
+        {loading ? "loading" : `${total.toLocaleString()} contact${total === 1 ? "" : "s"}`}
       </span>
       {right}
     </div>
   );
 }
 
-/** Prev / page / Next controls. */
+/** Search field with a leading icon. */
+export function SearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative min-w-52 flex-1">
+      <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--subtle)]" />
+      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="pl-9" />
+    </div>
+  );
+}
+
+/** One row in a contact list: details on the left, actions on the right. */
+export function ContactRow({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 px-4 py-4">
+      <div className="min-w-0 flex-1">{children}</div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+/** Hairline-divided list container for ContactRow. */
+export function RowList({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="divide-y divide-[var(--border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] empty:hidden">
+      {children}
+    </div>
+  );
+}
+
+/** Previous / page / Next controls. */
 export function HRPager({
   page,
   totalPages,
@@ -111,73 +136,56 @@ export function HRPager({
 }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="mt-4 flex items-center justify-center gap-3 text-sm">
-      <Button variant="secondary" onClick={() => goto(page - 1)} disabled={loading || page <= 1}>
-        ← Prev
+    <div className="mt-4 flex items-center justify-between gap-3">
+      <Button variant="secondary" size="sm" onClick={() => goto(page - 1)} disabled={loading || page <= 1}>
+        <IconChevronLeft />
+        Previous
       </Button>
-      <span className="text-[var(--muted)]">
-        Page {page} of {totalPages}
+      <span className="font-mono text-[12px] text-[var(--subtle)]">
+        {page} / {totalPages}
       </span>
-      <Button variant="secondary" onClick={() => goto(page + 1)} disabled={loading || page >= totalPages}>
-        Next →
+      <Button variant="secondary" size="sm" onClick={() => goto(page + 1)} disabled={loading || page >= totalPages}>
+        Next
+        <IconChevronRight />
       </Button>
     </div>
   );
 }
 
-/** Colored badge for a company's importance rank. */
+/** Company importance (AI-ranked, 0 to 100). Top companies read in primary text. */
 export function RankBadge({ rank }: { rank: number }) {
-  const tone =
-    rank >= 85
-      ? "bg-[var(--success-soft)] text-[var(--success-fg)]"
-      : rank >= 60
-      ? "bg-[var(--info-soft)] text-[var(--info-fg)]"
-      : rank >= 40
-      ? "bg-[var(--surface)] text-[var(--muted)]"
-      : "bg-[var(--surface)] text-[var(--muted)]";
   return (
-    <span className={`rounded-[var(--radius-full)] px-2 py-0.5 text-xs font-medium ${tone}`} title="Company importance (AI-ranked)">
-      ★ {rank}
+    <span
+      className={`font-mono text-[12px] ${rank >= 85 ? "text-[var(--fg)]" : "text-[var(--subtle)]"}`}
+      title="Company importance, AI-ranked"
+    >
+      rank {rank}
     </span>
   );
 }
 
-/** The "Sent" section: contacts already reached out to on this channel. */
+/** Contacts already reached on this channel, each with its postmark. */
 export function SentSection({ sent }: { sent: HRSentRecord[] }) {
   return (
     <div className="mt-8">
-      <div className="mb-2 text-sm font-medium">
-        Sent{sent.length > 0 && <span className="text-[var(--muted)]"> · {sent.length}</span>}
-      </div>
+      <SubHeading count={sent.length}>Sent</SubHeading>
       {sent.length === 0 ? (
-        <div className="text-sm text-[var(--muted)]">
-          Nothing sent yet. Contacts move here once you reach out.
-        </div>
+        <p className="text-[13px] text-[var(--muted)]">Nothing sent yet. Contacts move here once you reach out</p>
       ) : (
-        <div className="space-y-2">
+        <RowList>
           {sent.map((s, i) => (
-            <div
-              key={`${s.key}-${i}`}
-              className="flex items-start justify-between gap-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm"
-            >
+            <div key={`${s.key}-${i}`} className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block h-2 w-2 shrink-0 rounded-[var(--radius-full)] bg-[var(--success)]" />
-                  <span className="font-medium">{s.name || "(no name)"}</span>
-                  <span className="truncate text-[var(--muted)]">
-                    {[s.company, s.role].filter(Boolean).join(" · ")}
-                  </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="truncate text-[14px] font-medium">{s.name || "No name"}</span>
+                  <span className="truncate text-[13px] text-[var(--muted)]">{[s.company, s.role].filter(Boolean).join(" · ")}</span>
                 </div>
-                <div className="mt-0.5 truncate pl-4 font-mono text-xs text-[var(--muted)]">
-                  {s.email || s.phone}
-                </div>
+                <div className="mt-0.5 truncate font-mono text-[12px] text-[var(--subtle)]">{s.email || s.phone}</div>
               </div>
-              <span className="shrink-0 whitespace-nowrap text-xs text-[var(--muted)]">
-                {formatWhen(s.sentAt)}
-              </span>
+              <Postmark iso={s.sentAt} sent />
             </div>
           ))}
-        </div>
+        </RowList>
       )}
     </div>
   );

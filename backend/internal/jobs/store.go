@@ -50,7 +50,7 @@ func saveJobsLocked(path string, jobs []StoredJob) error {
 }
 
 // LoadOpen reads the open-jobs list for display, hiding anything that shouldn't
-// appear in Open: blocked-company listings, content-duplicate postings (the
+// appear in Open: internships, blocked-company listings, content-duplicate postings (the
 // actor returns the same job with different IDs), and any job already in the
 // applied list (so an applied job never re-surfaces in Open, even if it lingered
 // in the file from an older run). Missing file → empty slice.
@@ -73,8 +73,8 @@ func LoadOpen(openPath, appliedPath string) ([]StoredJob, error) {
 	filtered := jobs[:0]
 	for _, j := range jobs {
 		key := j.DedupKey()
-		if isBlockedCompany(j.Organization) || seen[key] {
-			continue // blocked, already-applied, or a duplicate we've kept once
+		if j.IsInternship() || isBlockedCompany(j.Organization) || seen[key] {
+			continue // internship, blocked, already-applied, or a duplicate
 		}
 		seen[key] = true
 		filtered = append(filtered, j)
@@ -211,9 +211,9 @@ func MarkApplied(openPath, appliedPath, jobID string) (open, applied []StoredJob
 
 // RunRecord is one Apify actor run.
 type RunRecord struct {
-	RanAt      time.Time `json:"ranAt"`
-	JobsFound  int       `json:"jobsFound"`  // total jobs returned by the actor
-	JobsAdded  int       `json:"jobsAdded"`  // new jobs merged into the open list
+	RanAt     time.Time `json:"ranAt"`
+	JobsFound int       `json:"jobsFound"` // total jobs returned by the actor
+	JobsAdded int       `json:"jobsAdded"` // new jobs merged into the open list
 }
 
 // runsMu guards concurrent read/modify/write of the runs log. It's separate from

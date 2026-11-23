@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -53,14 +54,33 @@ func (j Job) DedupKey() string {
 // DefaultRoles are the software roles the user wants when the request omits any.
 var DefaultRoles = []string{
 	"Software Engineer",
-	"Software Engineer Intern",
 	"Software Developer",
 	"Backend Developer",
 	"Backend Engineer",
 }
 
-// DefaultLocation is the location filter used when none is given.
-const DefaultLocation = "India"
+// Locations are the only cities searched. Each spelling the job boards use is
+// listed (Bangalore/Bengaluru, Gurgaon/Gurugram, Delhi/New Delhi) because the
+// actor matches location names, not places.
+var Locations = []string{
+	"Bengaluru", "Bangalore", "Hyderabad", "Pune",
+	"Delhi", "New Delhi", "Noida", "Gurgaon", "Gurugram",
+}
+
+// inAllowedCity reports whether any of a job's locations is one of Locations.
+// The actor's locationSearch is the main filter; this guards against its loose
+// matching letting e.g. a bare "India" or another city through.
+func inAllowedCity(locs []string) bool {
+	for _, l := range locs {
+		l = strings.ToLower(l)
+		for _, c := range Locations {
+			if strings.Contains(l, strings.ToLower(c)) {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // Job-count and time-range bounds/defaults for a search. The actor requires
 // limit >= 10; we cap the UI at 100. timeRange accepts only the actor's enum.
@@ -108,6 +128,20 @@ var blockedCompanies = []string{
 	"Scoutit",
 }
 
+// internTitleRe matches titles for internships and trainee-grade roles. Word
+// boundaries keep it from firing on "International" or "Internal Tools".
+var internTitleRe = regexp.MustCompile(`(?i)\b(intern|internship|interns|trainee|apprentice|apprenticeship|co-?op|summer analyst|industrial training)\b`)
+
+// IsInternship reports whether a posting is an internship rather than a
+// full-time role. Both signals are needed: the actor types only some postings
+// as INTERN, and some full-time-typed listings are internships by title.
+func (j Job) IsInternship() bool {
+	if strings.EqualFold(strings.TrimSpace(j.EmploymentType), "INTERN") {
+		return true
+	}
+	return internTitleRe.MatchString(j.Title)
+}
+
 // isBlockedCompany reports whether org matches any entry in blockedCompanies.
 func isBlockedCompany(org string) bool {
 	o := strings.ToLower(strings.TrimSpace(org))
@@ -124,20 +158,17 @@ func isBlockedCompany(org string) bool {
 
 const apifyBase = "https://api.apify.com/v2/acts"
 
-// Search runs the configured Apify actor filtered to the given roles + location
+// Search runs the configured Apify actor filtered to the given roles + Locations
 // and fresher (0-2 yr) experience, returning up to `limit` jobs posted within
 // `timeRange`. Both are normalized/validated. A successful run that yields no
 // jobs returns an empty slice with a nil error; only transport/auth/parse
 // problems return an error.
-func Search(ctx context.Context, cfg SearchConfig, roles []string, location string, limit int, timeRange string) ([]Job, error) {
+func Search(ctx context.Context, cfg SearchConfig, roles []string, limit int, timeRange string) ([]Job, error) {
 	if cfg.Token == "" {
 		return nil, fmt.Errorf("Apify token not configured: set APIFY_TOKEN in backend/.env")
 	}
 	if len(roles) == 0 {
 		roles = DefaultRoles
-	}
-	if strings.TrimSpace(location) == "" {
-		location = DefaultLocation
 	}
 	limit = normalizeLimit(limit)
 	timeRange = normalizeTimeRange(timeRange)
@@ -149,14 +180,14 @@ func Search(ctx context.Context, cfg SearchConfig, roles []string, location stri
 
 	// Server-side filters (verified against the live actor): timeRange scopes to
 	// jobs posted within the chosen window, titleSearch matches the roles,
-	// locationSearch scopes to the country, and aiExperienceLevelFilter "0-2" is
+	// locationSearch scopes to the target cities, and aiExperienceLevelFilter "0-2" is
 	// the fresher bucket. limit is the per-call ceiling (>= 10).
 	reqBody := map[string]any{
 		"timeRange":               timeRange,
 		"limit":                   limit,
 		"descriptionType":         "text",
 		"titleSearch":             roles,
-		"locationSearch":          []string{location},
+		"locationSearch":          Locations,
 		"aiExperienceLevelFilter": []string{"0-2"},
 	}
 	buf, err := json.Marshal(reqBody)
@@ -223,6 +254,12 @@ func Search(ctx context.Context, cfg SearchConfig, roles []string, location stri
 		}
 		// Skip blocked companies (spammy repeat-posters). Dropping them here means
 		// they never reach the AI eligibility step either — no wasted OpenAI calls.
+		if !inAllowedCity(stringSlice(item, "locations_derived")) {
+			continue
+		}
+		if j.IsInternship() {
+			continue
+		}
 		if isBlockedCompany(j.Organization) {
 			continue
 		}

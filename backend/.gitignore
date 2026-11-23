@@ -15,7 +15,13 @@ data/*.xlsx
 data/company_ranks.json
 data/hr_sent.json
 data/replies.json
+data/schedule.json
+data/send_queue.json
+data/target_companies.json
+data/bounced.json
+data/reach_cache.json
 
 # Build artifacts
 /emailsender
+/bin/
 *.exe

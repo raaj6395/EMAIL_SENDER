@@ -280,3 +280,19 @@ func cellValue(cellType, v, inlineT string, shared []string) string {
 func colLetters(ref string) string {
 	return colRe.FindString(ref)
 }
+
+// ReadSheet exposes the xlsx reader to other packages: it returns worksheet
+// `index` (0-based) as rows of column-letter→cell text, e.g. {"A":"delhivery"}.
+// A missing sheet returns nil rows and no error. Exported so packages like
+// `reach` can read their own spreadsheets without a second xlsx implementation.
+func ReadSheet(path string, index int) ([]map[string]string, error) {
+	wb, err := readXLSX(path)
+	if err != nil {
+		return nil, err
+	}
+	sheet := wb.sheetByIndex(index)
+	if sheet == nil {
+		return nil, nil
+	}
+	return sheet.Rows, nil
+}

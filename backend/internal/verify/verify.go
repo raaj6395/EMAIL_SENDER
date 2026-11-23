@@ -21,13 +21,14 @@ const (
 	CodeOK        Code = "ok"         // syntax valid + domain accepts mail
 	CodeBadSyntax Code = "bad_syntax" // not a valid address — block
 	CodeNoMX      Code = "no_mx"      // domain has no mail server — block
+	CodeBounced   Code = "bounced"    // a previous send hard-bounced — block
 	CodeError     Code = "error"      // lookup failed (network/timeout) — allow, uncertain
 )
 
 // Result is the outcome of a check.
 type Result struct {
 	Email  string `json:"email"`
-	Valid  bool   `json:"valid"`  // false only for clear failures (bad_syntax / no_mx)
+	Valid  bool   `json:"valid"` // false only for clear failures (bad_syntax / no_mx)
 	Code   Code   `json:"code"`
 	Reason string `json:"reason"` // human-readable
 }
@@ -47,6 +48,10 @@ func Check(ctx context.Context, email string) Result {
 	parsed, err := mail.ParseAddress(addr)
 	if err != nil || !strings.Contains(parsed.Address, "@") {
 		return Result{Email: addr, Valid: false, Code: CodeBadSyntax, Reason: "That doesn't look like a valid email address."}
+	}
+	if isBounced(parsed.Address) {
+		return Result{Email: addr, Valid: false, Code: CodeBounced,
+			Reason: "A previous email to this address bounced (address not found)."}
 	}
 	// Use the parsed address (strips any display name).
 	at := strings.LastIndex(parsed.Address, "@")

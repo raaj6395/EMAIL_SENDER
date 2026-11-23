@@ -14,6 +14,7 @@ type Config struct {
 	GmailAppPassword string
 	SMTPHost         string
 	SMTPPort         int
+	SMTPTimeoutSec   int    // per-attempt dial+send timeout; 0 → package default
 	Port             string // HTTP port the server listens on
 	AllowedOrigin    string // CORS origin for the frontend
 
@@ -37,14 +38,27 @@ type Config struct {
 
 	// HR outreach (WhatsApp + email contact sheets). Feature enabled when the
 	// xlsx exists on disk.
-	HRDataPath      string
-	HRRanksPath     string // cached company importance scores
-	HRSentPath      string // contacts already reached out to
+	HRDataPath  string
+	HRRanksPath string // cached company importance scores
+	HRSentPath  string // contacts already reached out to
+
+	// Startup outreach sheet (reach.xlsx) + its verification/screening cache.
+	// Feature enabled when the xlsx exists on disk.
+	ReachDataPath  string
+	ReachCachePath string
+	BouncedPath    string // hard-bounced addresses, blocked from sending
 
 	DataDir     string // directory holding resume.pdf, profile.json, history.json
 	ResumePath  string // SD-track resume (resume.pdf)
 	ProfilePath string // SD-track profile (profile.json)
 	HistoryPath string
+
+	// Scheduled bulk send: the weekly send windows and the persisted queue.
+	SchedulePath string
+	QueuePath    string
+
+	// Target companies (AI-estimated fresher comp), for the Targets page.
+	TargetsPath string
 
 	// AI-track equivalents (a second resume + profile for AI/ML-role emails).
 	AIResumePath  string // ai_resume.pdf
@@ -54,6 +68,10 @@ type Config struct {
 	IMAPHost    string
 	IMAPPort    int
 	RepliesPath string // triaged replies store
+
+	// check-if-email-exists HTTP backend (reacherhq/backend). The Check page
+	// POSTs here; empty falls back to http://127.0.0.1:8081 inside the client.
+	ReacherURL string
 }
 
 // Load reads configuration from a .env file (if present) and the environment.
@@ -74,6 +92,7 @@ func Load() (*Config, error) {
 		GmailAppPassword: os.Getenv("GMAIL_APP_PASSWORD"),
 		SMTPHost:         getenv("SMTP_HOST", "smtp.gmail.com"),
 		SMTPPort:         getenvInt("SMTP_PORT", 587),
+		SMTPTimeoutSec:   getenvInt("SMTP_TIMEOUT_SEC", 45),
 		Port:             getenv("PORT", "8080"),
 		AllowedOrigin:    getenv("ALLOWED_ORIGIN", "http://localhost:3000"),
 		OpenAIKey:        os.Getenv("OPENAI_API_KEY"),
@@ -96,16 +115,25 @@ func Load() (*Config, error) {
 		HRRanksPath: filepath.Join(absData, "company_ranks.json"),
 		HRSentPath:  filepath.Join(absData, "hr_sent.json"),
 
-		DataDir: absData,
-		ResumePath:       filepath.Join(absData, "resume.pdf"),
-		ProfilePath:      filepath.Join(absData, "profile.json"),
-		HistoryPath:      filepath.Join(absData, "history.json"),
-		AIResumePath:     filepath.Join(absData, "ai_resume.pdf"),
-		AIProfilePath:    filepath.Join(absData, "profile_ai.json"),
+		ReachDataPath:  getenv("REACH_DATA_PATH", filepath.Join(absData, "reach.xlsx")),
+		ReachCachePath: filepath.Join(absData, "reach_cache.json"),
+		BouncedPath:    filepath.Join(absData, "bounced.json"),
+
+		DataDir:       absData,
+		ResumePath:    filepath.Join(absData, "resume.pdf"),
+		ProfilePath:   filepath.Join(absData, "profile.json"),
+		HistoryPath:   filepath.Join(absData, "history.json"),
+		SchedulePath:  filepath.Join(absData, "schedule.json"),
+		QueuePath:     filepath.Join(absData, "send_queue.json"),
+		TargetsPath:   filepath.Join(absData, "target_companies.json"),
+		AIResumePath:  filepath.Join(absData, "ai_resume.pdf"),
+		AIProfilePath: filepath.Join(absData, "profile_ai.json"),
 
 		IMAPHost:    getenv("IMAP_HOST", "imap.gmail.com"),
 		IMAPPort:    getenvInt("IMAP_PORT", 993),
 		RepliesPath: filepath.Join(absData, "replies.json"),
+
+		ReacherURL: getenv("REACHER_URL", "http://127.0.0.1:8081"),
 	}
 
 	// Ensure the data directory exists so profile/history writes don't fail.
@@ -145,6 +173,12 @@ func (c *Config) HasJobs() bool {
 // HasHR reports whether the HR outreach spreadsheet is present on disk.
 func (c *Config) HasHR() bool {
 	info, err := os.Stat(c.HRDataPath)
+	return err == nil && !info.IsDir() && info.Size() > 0
+}
+
+// HasReach reports whether the startup outreach spreadsheet is present on disk.
+func (c *Config) HasReach() bool {
+	info, err := os.Stat(c.ReachDataPath)
 	return err == nil && !info.IsDir() && info.Size() > 0
 }
 

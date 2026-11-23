@@ -14,6 +14,7 @@
 #   ./run.sh              # full setup + run both servers
 #   ./run.sh setup        # setup only (deps, env files) — don't start servers
 #   ./run.sh doctor       # just check prerequisites and config, report status
+#   ./run.sh mcp          # build the MCP server so Claude can send email
 #
 # Stop everything with Ctrl-C.
 
@@ -155,6 +156,14 @@ install_backend() {
   ok "Backend ready"
 }
 
+build_mcp() {
+  step "Building the MCP server"
+  info "Compiling backend/bin/mcp (lets Claude send email through this app)…"
+  ( cd "$BACKEND_DIR" && go build -o bin/mcp ./cmd/mcp )
+  ok "MCP server built at backend/bin/mcp"
+  info "It is registered in .mcp.json — start the backend, then run 'claude' from this directory."
+}
+
 install_frontend() {
   step "6. Installing frontend dependencies"
   if [ -d "$FRONTEND_DIR/node_modules" ]; then
@@ -179,19 +188,35 @@ cleanup() {
   ok "Stopped."
 }
 
-port_in_use() { lsof -ti:"$1" >/dev/null 2>&1; }
+# Only LISTEN sockets: a plain `lsof -ti:PORT` also matches clients connected to
+# the port (e.g. the browser tab open on :3000), which must never be killed.
+port_pids() { lsof -ti tcp:"$1" -sTCP:LISTEN 2>/dev/null || true; }
+
+# Free a port held by a leftover server: SIGTERM, then SIGKILL if it lingers.
+free_port() {
+  local pids
+  pids="$(port_pids "$1")"
+  [ -z "$pids" ] && return 0
+  warn "Port $1 in use (pid $(echo $pids)) — stopping it"
+  kill $pids 2>/dev/null || true
+  for _ in $(seq 1 10); do
+    [ -z "$(port_pids "$1")" ] && { ok "Port $1 freed"; return 0; }
+    sleep 0.5
+  done
+  kill -9 $(port_pids "$1") 2>/dev/null || true
+  sleep 0.5
+  if [ -n "$(port_pids "$1")" ]; then
+    err "Could not free port $1 — stop it manually, or set a different port."
+    exit 1
+  fi
+  ok "Port $1 freed"
+}
 
 run_servers() {
   step "7. Starting servers"
 
-  if port_in_use "$BACKEND_PORT"; then
-    err "Port $BACKEND_PORT is already in use. Stop the process using it, or set BACKEND_PORT=xxxx."
-    exit 1
-  fi
-  if port_in_use "$FRONTEND_PORT"; then
-    err "Port $FRONTEND_PORT is already in use. Stop the process using it, or set FRONTEND_PORT=xxxx."
-    exit 1
-  fi
+  free_port "$BACKEND_PORT"
+  free_port "$FRONTEND_PORT"
 
   trap cleanup INT TERM EXIT
 
@@ -261,9 +286,13 @@ case "$MODE" in
     install_frontend
     run_servers
     ;;
+  mcp)
+    check_prereqs
+    build_mcp
+    ;;
   *)
     err "Unknown command: $MODE"
-    printf "Usage: ./run.sh [run|setup|doctor]\n"
+    printf "Usage: ./run.sh [run|setup|doctor|mcp]\n"
     exit 1
     ;;
 esac

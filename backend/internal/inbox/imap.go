@@ -33,7 +33,7 @@ type Message struct {
 	Date       time.Time `json:"date"`
 	MessageID  string    `json:"messageId"`
 	InReplyTo  string    `json:"inReplyTo"`
-	References  []string  `json:"references"`
+	References []string  `json:"references"`
 	BodyText   string    `json:"bodyText"`
 }
 
@@ -46,29 +46,15 @@ func init() {
 // from INBOX (newest first), read-only. n is clamped to a sane range by the
 // caller; here we defend with a floor of 1.
 func FetchRecent(cfg Config, n int) ([]Message, error) {
-	if cfg.Username == "" || cfg.Password == "" {
-		return nil, fmt.Errorf("Gmail credentials not configured (need GMAIL_USER + GMAIL_APP_PASSWORD)")
-	}
 	if n < 1 {
 		n = 1
 	}
 
-	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-	c, err := client.DialTLS(addr, nil)
+	c, mbox, err := openInbox(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("could not connect to %s: %w", addr, err)
+		return nil, err
 	}
 	defer c.Logout()
-
-	if err := c.Login(cfg.Username, cfg.Password); err != nil {
-		return nil, fmt.Errorf("IMAP login failed (check GMAIL_APP_PASSWORD): %w", err)
-	}
-
-	// Read-only select so nothing is ever marked/changed.
-	mbox, err := c.Select("INBOX", true)
-	if err != nil {
-		return nil, fmt.Errorf("could not open INBOX: %w", err)
-	}
 	if mbox.Messages == 0 {
 		return []Message{}, nil
 	}
@@ -101,6 +87,29 @@ func FetchRecent(cfg Config, n int) ([]Message, error) {
 		out[i], out[j] = out[j], out[i]
 	}
 	return out, nil
+}
+
+// openInbox logs in and selects INBOX read-only so nothing is ever marked or
+// changed. The caller must Logout.
+func openInbox(cfg Config) (*client.Client, *imap.MailboxStatus, error) {
+	if cfg.Username == "" || cfg.Password == "" {
+		return nil, nil, fmt.Errorf("Gmail credentials not configured (need GMAIL_USER + GMAIL_APP_PASSWORD)")
+	}
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	c, err := client.DialTLS(addr, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not connect to %s: %w", addr, err)
+	}
+	if err := c.Login(cfg.Username, cfg.Password); err != nil {
+		c.Logout()
+		return nil, nil, fmt.Errorf("IMAP login failed (check GMAIL_APP_PASSWORD): %w", err)
+	}
+	mbox, err := c.Select("INBOX", true)
+	if err != nil {
+		c.Logout()
+		return nil, nil, fmt.Errorf("could not open INBOX: %w", err)
+	}
+	return c, mbox, nil
 }
 
 func normalize(msg *imap.Message, section *imap.BodySectionName) Message {
